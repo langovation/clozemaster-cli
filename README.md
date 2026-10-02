@@ -20,7 +20,13 @@ npm run build
 npm link
 ```
 
-The first run opens your browser to log in. Your login is saved in `~/.config/clozemaster/logins.json`.
+**Temporary:** browser login isn't live yet. For now, log in on clozemaster.com, copy your `_clozemaster_session` cookie from the browser's dev tools, and run:
+
+```sh
+CLOZEMASTER_COOKIE="_clozemaster_session=<your cookie>" npm run dev
+```
+
+Keep that cookie private; it's your login.
 
 ## Commands
 
