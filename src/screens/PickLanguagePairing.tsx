@@ -1,5 +1,5 @@
 import React from "react";
-import { Box, Text } from "ink";
+import { Box, Text, useInput } from "ink";
 import { getLanguagePairings, type LanguagePairing } from "../api.js";
 import { ErrorMessage } from "../components/ErrorMessage.js";
 import { Hints } from "../components/Hints.js";
@@ -8,8 +8,14 @@ import { Spinner } from "../components/Spinner.js";
 import { Welcome } from "../components/Welcome.js";
 import { useRequest } from "../useRequest.js";
 
-export function PickLanguagePairing({ onPick, username }: { onPick: (pairing: LanguagePairing) => void; username?: string }) {
+type PickLanguagePairingProps = { onOpenSettings: () => void; onPick: (pairing: LanguagePairing) => void; username?: string };
+
+export function PickLanguagePairing({ onOpenSettings, onPick, username }: PickLanguagePairingProps) {
   const { data: pairings, error, isLoading } = useRequest(getLanguagePairings);
+
+  useInput((input) => {
+    if (input === "s") onOpenSettings();
+  });
 
   return (
     <Box flexDirection="column" gap={1}>
@@ -30,7 +36,7 @@ export function PickLanguagePairing({ onPick, username }: { onPick: (pairing: La
           />
         </Box>
       )}
-      <Hints hints={["↑↓ to move", "enter to pick", "ctrl+c to quit"]} />
+      <Hints hints={["enter to pick", "s settings", "ctrl+c to quit"]} />
     </Box>
   );
 }

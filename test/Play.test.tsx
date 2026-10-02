@@ -1,8 +1,13 @@
+import fs from "node:fs";
+import path from "node:path";
 import React from "react";
 import { render } from "ink-testing-library";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../src/api.js";
+import { configDirectory } from "../src/config.js";
 import { Play } from "../src/screens/Play.js";
+import { saveSettings, DEFAULT_SETTINGS, type Settings } from "../src/settings.js";
+import { SettingsProvider } from "../src/SettingsContext.js";
 import { ENTER, press, settle, showsInColor, stripAnsi } from "./helpers.js";
 
 const sentence: api.Sentence = {
@@ -18,15 +23,23 @@ const sentence: api.Sentence = {
 
 const choice = { playDataUrl: "https://example.com/play", title: "Core 1,000 Collection" };
 
-function renderPlay(mode: api.PlayMode) {
-  return render(<Play choice={choice} mode={mode} onMenu={vi.fn()} onToggleMode={vi.fn()} />);
+const progress = { currentStreakDays: 12, dailyGoalPointsPerDay: 100, level: 7, numPointsToday: 40, score: 900 };
+
+function renderPlay(mode: api.PlayMode, settings: Partial<Settings> = {}) {
+  saveSettings({ ...DEFAULT_SETTINGS, ...settings });
+  return render(
+    <SettingsProvider>
+      <Play choice={choice} mode={mode} onMenu={vi.fn()} onToggleMode={vi.fn()} />
+    </SettingsProvider>,
+  );
 }
 
 describe("Play", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    fs.rmSync(path.join(configDirectory, "settings.json"), { force: true });
     vi.spyOn(api, "getRound").mockResolvedValue({ collectionClozeSentences: [sentence], wordBank: [] });
-    vi.spyOn(api, "saveAnswer").mockResolvedValue({ languagePairing: { numPointsToday: 40, score: 900 } });
+    vi.spyOn(api, "saveAnswer").mockResolvedValue({ languagePairing: progress });
   });
 
   it("fills in a correct answer in green and finishes the round", async () => {
@@ -38,8 +51,12 @@ describe("Play", () => {
     expect(api.saveAnswer).toHaveBeenCalledWith(expect.objectContaining({ correct: true, mode: "multiple_choice" }));
 
     await press(stdin, ENTER);
-    expect(stripAnsi(lastFrame()!)).toContain("1 correct · 0 missed");
-    expect(lastFrame()).toContain("40 points today");
+    const summary = stripAnsi(lastFrame()!);
+    expect(summary).toContain("Round complete!");
+    expect(summary).toMatch(/1\s+0\s+100%/);
+    expect(summary).toContain("40/100 points today");
+    expect(summary).toContain("12 day streak");
+    expect(summary).toContain("✓ Tengo mucha hambre.");
   });
 
   it("shows a wrong answer in red with the right one in green below", async () => {
@@ -61,10 +78,46 @@ describe("Play", () => {
     expect(lastFrame()).toContain("I'm very hungry.");
 
     await press(stdin, "mucha", ENTER, ENTER);
-    expect(stripAnsi(lastFrame()!)).toContain("1 correct · 1 missed");
+    expect(stripAnsi(lastFrame()!)).toMatch(/1\s+1\s+50%/);
+    expect(stripAnsi(lastFrame()!)).toContain("✗ Tengo mucha hambre.");
   });
 
-  it("reveals a flashcard and saves the self-grade as multiple choice", async () => {
+  it("colours typing red once it stops matching", async () => {
+    const { lastFrame, stdin } = renderPlay("text_input");
+    await settle();
+    await press(stdin, "muc");
+    expect(showsInColor(lastFrame()!, "muc", "brand")).toBe(true);
+    await press(stdin, "x");
+    expect(showsInColor(lastFrame()!, "mucx", "danger")).toBe(true);
+  });
+
+  it("nudges a near miss once before grading it", async () => {
+    const { lastFrame, stdin } = renderPlay("text_input");
+    await settle();
+    await press(stdin, "mucah", ENTER);
+    expect(stripAnsi(lastFrame()!)).toContain("Off by 2 letters");
+    expect(api.saveAnswer).not.toHaveBeenCalled();
+
+    await press(stdin, ENTER);
+    expect(api.saveAnswer).toHaveBeenCalledWith(expect.objectContaining({ correct: false }));
+  });
+
+  it("grades a near miss straight away with spelling hints off", async () => {
+    const { stdin } = renderPlay("text_input", { spellingHints: false });
+    await settle();
+    await press(stdin, "mucah", ENTER);
+    expect(api.saveAnswer).toHaveBeenCalledWith(expect.objectContaining({ correct: false }));
+  });
+
+  it("hides the translation until answering when set to after", async () => {
+    const { lastFrame, stdin } = renderPlay("text_input", { translation: "after" });
+    await settle();
+    expect(lastFrame()).not.toContain("I'm very hungry.");
+    await press(stdin, "mucha", ENTER);
+    expect(lastFrame()).toContain("I'm very hungry.");
+  });
+
+  it("reveals a flashcard and saves the self-grade", async () => {
     const { lastFrame, stdin } = renderPlay("flashcard");
     await settle();
     expect(stripAnsi(lastFrame()!)).not.toContain("mucha");
@@ -74,7 +127,7 @@ describe("Play", () => {
 
     await press(stdin, "2");
     expect(api.saveAnswer).toHaveBeenCalledWith(expect.objectContaining({ correct: true, mode: "flashcard" }));
-    expect(stripAnsi(lastFrame()!)).toContain("1 correct · 0 missed");
+    expect(stripAnsi(lastFrame()!)).toContain("Round complete!");
   });
 
   it("goes back to the previous flashcard and only saves the final grade", async () => {

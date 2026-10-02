@@ -6,7 +6,7 @@ export type StoredLogin = { authToken: string; username: string };
 
 export const baseUrl = (process.env.CLOZEMASTER_URL || "https://www.clozemaster.com").replace(/\/$/, "");
 
-const configDirectory = path.join(process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config"), "clozemaster");
+export const configDirectory = path.join(process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config"), "clozemaster");
 const loginsPath = path.join(configDirectory, "logins.json");
 
 // Keyed by base URL so a localhost login never gets sent to production.

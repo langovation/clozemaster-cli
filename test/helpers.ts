@@ -19,10 +19,10 @@ function rgb(hex: string) {
   return `${(value >> 16) & 255};${(value >> 8) & 255};${value & 255}`;
 }
 
-// Whether the frame shows `text` in the given colour, ignoring any bold/reset codes around it.
+// Whether the frame shows `text` in the given colour, ignoring style codes and same-coloured text before it.
 export function showsInColor(frame: string, text: string, color: keyof typeof colors) {
   const escaped = text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`38;2;${rgb(colors[color])}m(?:\\u001b\\[[0-9;]*m)*${escaped}`).test(frame);
+  return new RegExp(`38;2;${rgb(colors[color])}m(?:\\u001b\\[(?:1|22|3|23|7|27)m|[^\\u001b])*?${escaped}`).test(frame);
 }
 
 export const stripAnsi = (frame: string) => frame.replace(/\u001b\[[0-9;]*m/g, "");

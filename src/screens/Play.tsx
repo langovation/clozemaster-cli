@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Box, Text, useInput } from "ink";
-import { getRound, saveAnswer, type PlayMode, type Sentence } from "../api.js";
+import { getRound, saveAnswer, type AnswerResult, type PlayMode, type Sentence } from "../api.js";
 import { isCorrectAnswer, multipleChoiceOptions, pointsFor } from "../answers.js";
 import { FlashcardAnswer } from "../components/FlashcardAnswer.js";
 import { ErrorMessage } from "../components/ErrorMessage.js";
@@ -10,16 +10,17 @@ import { RoundProgress } from "../components/RoundProgress.js";
 import { SentenceCard, type AnsweredSentence } from "../components/SentenceCard.js";
 import { Spinner } from "../components/Spinner.js";
 import { TextAnswer } from "../components/TextAnswer.js";
+import { useSettings } from "../SettingsContext.js";
 import { colors } from "../theme.js";
 import { useRequest } from "../useRequest.js";
 import { MODE_LABELS, nextMode } from "./PickMode.js";
 import type { RoundChoice } from "./PickRound.js";
-import { RoundSummary } from "./RoundSummary.js";
+import { RoundSummary, type RoundResult } from "./RoundSummary.js";
 
 const ANSWER_HINTS: Record<PlayMode, string> = {
   flashcard: "space to reveal",
   multiple_choice: "1-4 to answer",
-  text_input: "enter to answer",
+  text_input: "↑ adds an accent",
 };
 
 type PlayProps = { choice: RoundChoice; mode: PlayMode; onMenu: () => void; onToggleMode: () => void };
@@ -60,7 +61,7 @@ export function Play({ choice, mode, onMenu, onToggleMode }: PlayProps) {
   );
 }
 
-type PendingAnswer = AnsweredSentence & { index: number; secondsSpent: number; sentence: Sentence };
+type PendingAnswer = RoundResult & { index: number; secondsSpent: number };
 
 type PlayRoundProps = Omit<PlayProps, "choice"> & {
   choice: RoundChoice;
@@ -73,8 +74,10 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onToggleMode, sentences,
   const [deck, setDeck] = useState(sentences);
   const [index, setIndex] = useState(0);
   const [answered, setAnswered] = useState<AnsweredSentence>();
-  const [results, setResults] = useState<AnsweredSentence[]>([]);
-  const [numPointsToday, setNumPointsToday] = useState<number>();
+  const [results, setResults] = useState<RoundResult[]>([]);
+  const [progress, setProgress] = useState<AnswerResult["languagePairing"]>();
+  const [startedAt] = useState(Date.now());
+  const { settings } = useSettings();
   const [saveError, setSaveError] = useState<Error>();
   const [isRevealed, setIsRevealed] = useState(false);
   const shownAt = useRef(Date.now());
@@ -123,7 +126,7 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onToggleMode, sentences,
   }
 
   function answer(attempt: string) {
-    const isCorrect = isCorrectAnswer(attempt, sentence);
+    const isCorrect = isCorrectAnswer(attempt, sentence, { strictAccents: settings.strictAccents });
     const result = record({ answer: attempt.trim(), isCorrect });
     setAnswered(result);
     submit({ ...result, sentence });
@@ -134,6 +137,7 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onToggleMode, sentences,
       answer: attempt,
       isCorrect,
       points: pointsFor({ correct: isCorrect, mode, sentence }),
+      sentence,
       secondsSpent: Math.round((Date.now() - shownAt.current) / 1000),
     };
     setResults((previous) => [...previous, result]);
@@ -151,7 +155,7 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onToggleMode, sentences,
         secondsSpent,
         sentence,
       });
-      setNumPointsToday(saved.languagePairing?.numPointsToday);
+      setProgress(saved.languagePairing);
     } catch (error) {
       setSaveError(error as Error);
     }
@@ -167,12 +171,11 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onToggleMode, sentences,
   if (!sentence) {
     return (
       <RoundSummary
-        numCorrect={results.filter((result) => result.isCorrect).length}
-        numMissed={results.filter((result) => !result.isCorrect).length}
-        numPointsToday={numPointsToday}
+        elapsedSeconds={Math.round((Date.now() - startedAt) / 1000)}
         onMenu={onMenu}
         onPlayAgain={onPlayAgain}
-        points={results.reduce((sum, result) => sum + result.points, 0)}
+        progress={progress}
+        results={results}
       />
     );
   }
@@ -185,7 +188,7 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onToggleMode, sentences,
       </Box>
       <SentenceCard answered={answered} isRevealed={isRevealed} sentence={sentence} />
       {!answered && mode === "multiple_choice" && <MultipleChoiceAnswer onAnswer={answer} options={options} />}
-      {!answered && mode === "text_input" && <TextAnswer onAnswer={answer} />}
+      {!answered && mode === "text_input" && <TextAnswer key={index} onAnswer={answer} sentence={sentence} />}
       {!answered && mode === "flashcard" && (
         <FlashcardAnswer isRevealed={isRevealed} onGrade={gradeFlashcard} onReveal={() => setIsRevealed(true)} />
       )}

@@ -17,7 +17,8 @@ export function startFakeServer() {
     requests.push({ body: init.body ? JSON.parse(String(init.body)) : undefined, method, url });
 
     if (method === "PUT" && url.pathname.endsWith("/ccs/answer")) {
-      return respond(200, { languagePairing: { numPointsToday: 52, score: 1000 } });
+      const answer = fixture("answer");
+      return respond(200, { ...answer, languagePairing: { ...answer.languagePairing, numPointsToday: 52 } });
     }
     if (url.pathname === "/api/v1/lp") return respond(200, fixture("language_pairings"));
     if (/^\/api\/v1\/lp\/\d+\/c$/.test(url.pathname)) return respond(200, fixture("collections"));

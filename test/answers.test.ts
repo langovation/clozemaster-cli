@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Sentence } from "../src/api.js";
-import { isCorrectAnswer, multipleChoiceOptions, pointsFor, splitCloze } from "../src/answers.js";
+import { isCorrectAnswer, isOnTrack, lettersOff, multipleChoiceOptions, pointsFor, splitCloze } from "../src/answers.js";
 
 const sentence: Sentence = {
   alternativeAnswers: ["mucho"],
@@ -18,17 +18,49 @@ describe("splitCloze", () => {
   });
 });
 
+const strict = { strictAccents: true };
+const lenient = { strictAccents: false };
+const accented: Sentence = { ...sentence, text: "Es un {{camión}}." };
+
 describe("isCorrectAnswer", () => {
-  it("accepts the cloze word ignoring case, accents and surrounding spaces", () => {
-    expect(isCorrectAnswer(" Mućha ", sentence)).toBe(true);
+  it("accepts the cloze word ignoring case and surrounding spaces", () => {
+    expect(isCorrectAnswer(" Mucha ", sentence, strict)).toBe(true);
   });
 
   it("accepts an alternative answer", () => {
-    expect(isCorrectAnswer("mucho", sentence)).toBe(true);
+    expect(isCorrectAnswer("mucho", sentence, strict)).toBe(true);
   });
 
   it("rejects a wrong word", () => {
-    expect(isCorrectAnswer("poco", sentence)).toBe(false);
+    expect(isCorrectAnswer("poco", sentence, strict)).toBe(false);
+  });
+
+  it("rejects a missing accent with strict accents on", () => {
+    expect(isCorrectAnswer("camion", accented, strict)).toBe(false);
+  });
+
+  it("accepts a missing accent with strict accents off", () => {
+    expect(isCorrectAnswer("camion", accented, lenient)).toBe(true);
+  });
+});
+
+describe("isOnTrack", () => {
+  it("is on track while the input starts an accepted answer", () => {
+    expect(isOnTrack("muc", sentence, strict)).toBe(true);
+  });
+
+  it("is off track once the input diverges", () => {
+    expect(isOnTrack("mux", sentence, strict)).toBe(false);
+  });
+});
+
+describe("lettersOff", () => {
+  it("counts a near miss", () => {
+    expect(lettersOff("mucah", sentence, strict)).toBe(2);
+  });
+
+  it("ignores answers that are way off", () => {
+    expect(lettersOff("tanto", sentence, strict)).toBeUndefined();
   });
 });
 

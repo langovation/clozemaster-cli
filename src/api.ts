@@ -28,9 +28,11 @@ export type Sentence = {
   id: number;
   alternativeAnswers: string[];
   collectionClozeSentencesAnswerUrl?: string;
+  hint?: string | null;
   level: number | null;
   multipleChoiceOptions: string[] | null;
   nextReview: string | null;
+  pronunciation?: string | null;
   text: string;
   translation: string;
 };
@@ -43,7 +45,13 @@ export type Round = {
 export type PlayMode = "flashcard" | "multiple_choice" | "text_input";
 
 export type AnswerResult = {
-  languagePairing: { numPointsToday: number; score: number };
+  languagePairing: {
+    currentStreakDays: number;
+    dailyGoalPointsPerDay: number | null;
+    level: number;
+    numPointsToday: number;
+    score: number;
+  };
 };
 
 export type CliLoginStart = {

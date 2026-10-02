@@ -5,6 +5,7 @@ import { render } from "ink-testing-library";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../src/App.js";
 import { splitCloze } from "../src/answers.js";
+import { configDirectory } from "../src/config.js";
 import { startFakeServer } from "./fakeServer.js";
 import { DOWN, ENTER, ESCAPE, press, settle, stripAnsi, UP } from "./helpers.js";
 
@@ -18,6 +19,7 @@ describe("App against recorded API responses", () => {
   let server: ReturnType<typeof startFakeServer>;
 
   beforeEach(() => {
+    fs.rmSync(path.join(configDirectory, "settings.json"), { force: true });
     vi.stubEnv("CLOZEMASTER_TOKEN", "1:test");
     server = startFakeServer();
   });
@@ -71,7 +73,8 @@ describe("App against recorded API responses", () => {
       await press(stdin, optionNumber, ENTER);
     }
 
-    expect(stripAnsi(lastFrame()!)).toContain(`${collectionRound.length} correct · 0 missed`);
+    expect(stripAnsi(lastFrame()!)).toMatch(new RegExp(`${collectionRound.length}\\s+0\\s+100%`));
+    expect(stripAnsi(lastFrame()!)).toContain("52/100 points today");
     expect(server.answers()).toHaveLength(collectionRound.length);
     expect(server.answers().every((answer) => answer.url.toString() === core.collectionClozeSentencesAnswerUrl)).toBe(true);
     expect(server.answers()[0].body).toMatchObject({ correct: true, id: collectionRound[0].id, mode: "multiple_choice" });
@@ -100,6 +103,22 @@ describe("App against recorded API responses", () => {
     await press(stdin, "1");
     const beginner = collections.find((collection: { name: string }) => collection.name === "Beginner A1");
     expect(server.answers()[0].url.toString()).toBe(beginner.collectionClozeSentencesAnswerUrl);
+  });
+
+  it("changes a setting and keeps it", async () => {
+    const { lastFrame, stdin } = render(<App />);
+    await settle();
+    await press(stdin, "s");
+    expect(stripAnsi(lastFrame()!)).toMatch(/Typing color hint\s+on/);
+    await press(stdin, ENTER);
+    expect(stripAnsi(lastFrame()!)).toMatch(/Typing color hint\s+off/);
+    await press(stdin, ESCAPE);
+    expect(lastFrame()).toContain("What are you learning today?");
+
+    const reopened = render(<App />);
+    await settle();
+    await press(reopened.stdin, "s");
+    expect(stripAnsi(reopened.lastFrame()!)).toMatch(/Typing color hint\s+off/);
   });
 
   it("goes back from browsing to my collections on esc", async () => {

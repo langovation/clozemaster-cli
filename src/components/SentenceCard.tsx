@@ -2,6 +2,7 @@ import React from "react";
 import { Box, Text } from "ink";
 import type { Sentence } from "../api.js";
 import { splitCloze } from "../answers.js";
+import { useSettings } from "../SettingsContext.js";
 import { colors } from "../theme.js";
 
 export type AnsweredSentence = { answer: string; isCorrect: boolean; points: number };
@@ -15,17 +16,22 @@ function Blank({ answered, cloze, isRevealed }: { answered?: AnsweredSentence; c
 }
 
 export function SentenceCard({ answered, isRevealed, sentence }: SentenceCardProps) {
+  const { settings } = useSettings();
   const { after, before, cloze } = splitCloze(sentence.text);
+  const isDone = Boolean(answered || isRevealed);
   const showsCorrection = answered && !answered.isCorrect && answered.answer !== "";
+  const showsTranslation = settings.translation === "visible" || (settings.translation === "after" && isDone);
   return (
     <Box flexDirection="column">
       <Box borderStyle="round" borderColor={colors.subtle} flexDirection="column" paddingX={1}>
+        {settings.hints && !isDone && sentence.hint && <Text color={colors.gold}>hint: {sentence.hint}</Text>}
         <Text>
           {before}
           <Blank answered={answered} cloze={cloze} isRevealed={isRevealed} />
           {after}
         </Text>
-        <Text dimColor>{sentence.translation}</Text>
+        {settings.pronunciation && isDone && sentence.pronunciation && <Text italic>{sentence.pronunciation}</Text>}
+        {showsTranslation && <Text dimColor>{sentence.translation}</Text>}
       </Box>
       {showsCorrection && (
         <Box paddingLeft={2}>

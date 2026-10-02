@@ -2,41 +2,72 @@ import type { PlayMode, Sentence } from "./api.js";
 
 export type ClozeParts = { after: string; before: string; cloze: string };
 
+export type AnswerCheck = { strictAccents: boolean };
+
 export function splitCloze(text: string): ClozeParts {
   const [before, rest = ""] = text.split("{{");
   const [cloze, after = ""] = rest.split("}}");
   return { after, before, cloze };
 }
 
-function normalize(text: string): string {
-  return text
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .normalize("NFC")
-    .toLowerCase()
-    .replace(/[\p{P}\s]+/gu, " ")
-    .trim();
+function stripAccents(text: string): string {
+  return text.normalize("NFD").replace(/[̀-ͯ]/g, "").normalize("NFC");
 }
 
-export function isCorrectAnswer(answer: string, sentence: Sentence): boolean {
-  const accepted = [splitCloze(sentence.text).cloze, ...(sentence.alternativeAnswers || [])];
-  return accepted.some((acceptedAnswer) => normalize(acceptedAnswer) === normalize(answer));
+// The web treats ё and е as the same letter whatever the accent setting.
+function normalize(text: string, { strictAccents }: AnswerCheck): string {
+  const folded = text.normalize("NFC").toLowerCase().replace(/ё/g, "е").trim();
+  return strictAccents ? folded : stripAccents(folded);
+}
+
+function acceptedAnswers(sentence: Sentence): string[] {
+  return [splitCloze(sentence.text).cloze, ...(sentence.alternativeAnswers || [])];
+}
+
+export function isCorrectAnswer(answer: string, sentence: Sentence, check: AnswerCheck): boolean {
+  return acceptedAnswers(sentence).some((accepted) => normalize(accepted, check) === normalize(answer, check));
+}
+
+// What the typing colour hint goes by: still a prefix of something that would be right.
+export function isOnTrack(typed: string, sentence: Sentence, check: AnswerCheck): boolean {
+  return acceptedAnswers(sentence).some((accepted) => normalize(accepted, check).startsWith(normalize(typed, check)));
+}
+
+// How many letters a wrong answer is off by, when it's close enough (2 or fewer) for a spelling hint.
+export function lettersOff(answer: string, sentence: Sentence, check: AnswerCheck): number | undefined {
+  const distance = levenshtein(normalize(answer, check), normalize(splitCloze(sentence.text).cloze, check));
+  return distance > 0 && distance <= 2 ? distance : undefined;
+}
+
+function levenshtein(first: string, second: string): number {
+  let previousRow = Array.from({ length: second.length + 1 }, (_, index) => index);
+  for (let i = 1; i <= first.length; i++) {
+    const row = [i];
+    for (let j = 1; j <= second.length; j++) {
+      const substitution = previousRow[j - 1] + (first[i - 1] === second[j - 1] ? 0 : 1);
+      row.push(Math.min(previousRow[j] + 1, row[j - 1] + 1, substitution));
+    }
+    previousRow = row;
+  }
+  return previousRow[second.length];
 }
 
 export function multipleChoiceOptions(sentence: Sentence, wordBank: string[]): string[] {
   const { cloze } = splitCloze(sentence.text);
+  const check = { strictAccents: true };
   const distractors = (sentence.multipleChoiceOptions?.length ? sentence.multipleChoiceOptions : wordBank)
-    .filter((option) => normalize(option) !== normalize(cloze));
+    .filter((option) => normalize(option, check) !== normalize(cloze, check));
   return shuffle([cloze, ...shuffle(distractors).slice(0, 3)]);
 }
 
 // Same formula as the apps, for display only; the server works out the real score.
-export function pointsFor({ correct, mode, sentence }: { correct: boolean; mode: PlayMode; sentence: Sentence }) {
+export function pointsFor({ correct, mode, sentence, usedHint = false }: { correct: boolean; mode: PlayMode; sentence: Sentence; usedHint?: boolean }) {
   if (!correct) return 0;
   const newLevel = Math.min((sentence.level || 0) + 1, 4);
-  const points = newLevel * (mode === "text_input" ? 8 : 4);
-  const isEarlyReview = sentence.nextReview !== null && new Date(sentence.nextReview) > new Date();
-  return isEarlyReview ? Math.floor(points / 2) : points;
+  let points = newLevel * (mode === "text_input" ? 8 : 4);
+  if (usedHint) points /= 2;
+  if (sentence.nextReview !== null && new Date(sentence.nextReview) > new Date()) points /= 2;
+  return Math.floor(points);
 }
 
 function shuffle<T>(items: T[]): T[] {

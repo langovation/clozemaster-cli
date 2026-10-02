@@ -18,6 +18,7 @@ const BROWSE = "browse";
 type PickRoundProps = {
   onBack: () => void;
   onBrowse: () => void;
+  onOpenSettings: () => void;
   onPick: (choice: RoundChoice) => void;
   pairing: LanguagePairing;
 };
@@ -39,11 +40,12 @@ function collectionChoice(collection: Collection): SelectItem<RoundChoice> {
   return { detail: `${collection.numReadyForReview} due`, label: collection.name, value: collectionRoundChoice(collection) };
 }
 
-export function PickRound({ onBack, onBrowse, onPick, pairing }: PickRoundProps) {
+export function PickRound({ onBack, onBrowse, onOpenSettings, onPick, pairing }: PickRoundProps) {
   const { data: collections, error, isLoading } = useRequest(() => getCollections(pairing), [pairing.id]);
 
-  useInput((_input, key) => {
+  useInput((input, key) => {
     if (key.escape) onBack();
+    if (input === "s") onOpenSettings();
   });
 
   if (isLoading) return <Spinner label="Loading your collections…" />;
@@ -72,7 +74,7 @@ export function PickRound({ onBack, onBrowse, onPick, pairing }: PickRoundProps)
           onSelect={(picked) => (picked === BROWSE ? onBrowse() : onPick(picked))}
         />
       </Box>
-      <Hints hints={["enter to pick", "esc to go back"]} />
+      <Hints hints={["enter to pick", "s settings", "esc to go back"]} />
     </Box>
   );
 }
