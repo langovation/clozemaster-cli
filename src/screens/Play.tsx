@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Box, Text, useInput } from "ink";
 import { getRound, saveAnswer, type AnswerResult, type PlayMode, type Sentence } from "../api.js";
 import { isCorrectAnswer, multipleChoiceOptions, pointsFor } from "../answers.js";
+import { canExplain, ExplanationPanel } from "../components/ExplanationPanel.js";
 import { FlashcardAnswer } from "../components/FlashcardAnswer.js";
 import { ErrorMessage } from "../components/ErrorMessage.js";
 import { Hints } from "../components/Hints.js";
@@ -20,7 +21,7 @@ import { RoundSummary, type RoundResult } from "./RoundSummary.js";
 const ANSWER_HINTS: Record<PlayMode, string> = {
   flashcard: "space to reveal",
   multiple_choice: "1-4 to answer",
-  text_input: "↑ adds an accent",
+  text_input: "? hint · ↑ accent",
 };
 
 type PlayProps = { choice: RoundChoice; mode: PlayMode; onMenu: () => void; onToggleMode: () => void };
@@ -90,11 +91,20 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onToggleMode, sentences,
     if (!sentence) savePendingGrade();
   }, [sentence]);
 
+  const [isExplaining, setIsExplaining] = useState(false);
+  const isDone = Boolean(answered || (mode === "flashcard" && isRevealed));
+  const isExplainable = Boolean(sentence && isDone && canExplain(sentence));
+
   useInput((input, key) => {
+    if (key.escape && isExplaining) {
+      setIsExplaining(false);
+      return;
+    }
     if (key.escape) {
       savePendingGrade();
       onMenu();
     }
+    if (input === "e" && isExplainable) setIsExplaining((current) => !current);
     if (key.tab && !answered) onToggleMode();
     if (key.return && answered) goToNextSentence();
     if (mode === "flashcard" && (input === "b" || key.backspace || key.delete)) goBackToPreviousCard();
@@ -125,18 +135,19 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onToggleMode, sentences,
     pendingGrade.current = undefined;
   }
 
-  function answer(attempt: string) {
+  function answer(attempt: string, usedHint = false) {
     const isCorrect = isCorrectAnswer(attempt, sentence, { strictAccents: settings.strictAccents });
-    const result = record({ answer: attempt.trim(), isCorrect });
+    const result = record({ answer: attempt.trim(), isCorrect, usedHint });
     setAnswered(result);
     submit({ ...result, sentence });
   }
 
-  function record({ answer: attempt, isCorrect }: { answer: string; isCorrect: boolean }) {
+  function record({ answer: attempt, isCorrect, usedHint = false }: { answer: string; isCorrect: boolean; usedHint?: boolean }) {
     const result = {
       answer: attempt,
       isCorrect,
-      points: pointsFor({ correct: isCorrect, mode, sentence }),
+      points: pointsFor({ correct: isCorrect, mode, sentence, usedHint }),
+      usedHint,
       sentence,
       secondsSpent: Math.round((Date.now() - shownAt.current) / 1000),
     };
@@ -146,7 +157,7 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onToggleMode, sentences,
     return result;
   }
 
-  async function submit({ isCorrect, secondsSpent, sentence }: Pick<PendingAnswer, "isCorrect" | "secondsSpent" | "sentence">) {
+  async function submit({ isCorrect, secondsSpent, sentence, usedHint }: Pick<PendingAnswer, "isCorrect" | "secondsSpent" | "sentence" | "usedHint">) {
     try {
       const saved = await saveAnswer({
         answerUrl: sentence.collectionClozeSentencesAnswerUrl || choice.answerUrl!,
@@ -154,6 +165,7 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onToggleMode, sentences,
         mode,
         secondsSpent,
         sentence,
+        usedHint,
       });
       setProgress(saved.languagePairing);
     } catch (error) {
@@ -164,6 +176,7 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onToggleMode, sentences,
   function goToNextSentence() {
     setAnswered(undefined);
     setIsRevealed(false);
+    setIsExplaining(false);
     setIndex((current) => current + 1);
     shownAt.current = Date.now();
   }
@@ -187,6 +200,7 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onToggleMode, sentences,
         <RoundProgress results={results.map((result) => result.isCorrect)} total={deck.length} />
       </Box>
       <SentenceCard answered={answered} isRevealed={isRevealed} sentence={sentence} />
+      {isExplaining && <ExplanationPanel sentence={sentence} />}
       {!answered && mode === "multiple_choice" && <MultipleChoiceAnswer onAnswer={answer} options={options} />}
       {!answered && mode === "text_input" && <TextAnswer key={index} onAnswer={answer} sentence={sentence} />}
       {!answered && mode === "flashcard" && (
@@ -196,9 +210,10 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onToggleMode, sentences,
       <Hints
         hints={
           answered
-            ? ["enter to continue", "esc menu"]
+            ? ["enter to continue", ...(isExplainable ? [isExplaining ? "e hide explanation" : "e explain"] : []), "esc menu"]
             : [
                 ANSWER_HINTS[mode],
+                ...(isExplainable ? ["e explain"] : []),
                 ...(mode === "flashcard" && results.length > 0 ? ["b back"] : []),
                 `tab: ${MODE_LABELS[nextMode(mode)].toLowerCase()}`,
                 "esc menu",

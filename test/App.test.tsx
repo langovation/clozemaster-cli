@@ -7,7 +7,7 @@ import { App } from "../src/App.js";
 import { splitCloze } from "../src/answers.js";
 import { configDirectory } from "../src/config.js";
 import { startFakeServer } from "./fakeServer.js";
-import { DOWN, ENTER, ESCAPE, press, settle, stripAnsi, UP } from "./helpers.js";
+import { DOWN, ENTER, ESCAPE, press, settle, stripAnsi, UP, waitForText } from "./helpers.js";
 
 const fixture = (name: string) => JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures", `${name}.json`), "utf8"));
 const pairing = fixture("language_pairings").languagePairings[0];
@@ -31,9 +31,9 @@ describe("App against recorded API responses", () => {
 
   async function openPairing() {
     const app = render(<App />);
-    await settle();
-    expect(app.lastFrame()).toContain(`${pairing.targetLanguageName} from ${pairing.baseLanguageName}`);
+    await waitForText(app.lastFrame, `${pairing.targetLanguageName} from ${pairing.baseLanguageName}`);
     await press(app.stdin, ENTER);
+    await waitForText(app.lastFrame, "What do you want to play?");
     return app;
   }
 
@@ -58,7 +58,7 @@ describe("App against recorded API responses", () => {
   it("says when there is nothing to review and goes back on esc", async () => {
     const { lastFrame, stdin } = await openPairing();
     await press(stdin, ENTER, ENTER);
-    expect(lastFrame()).toContain("Nothing to play in Review right now");
+    await waitForText(lastFrame, "Nothing to play in Review right now");
     await press(stdin, ESCAPE);
     expect(lastFrame()).toContain("What do you want to play?");
   });
@@ -66,6 +66,7 @@ describe("App against recorded API responses", () => {
   it("plays a full multiple choice round, saving each answer to the collection", async () => {
     const { lastFrame, stdin } = await openPairing();
     await press(stdin, DOWN, DOWN, ENTER, ENTER);
+    await waitForText(lastFrame, collectionRound[0].translation);
 
     for (const sentence of collectionRound) {
       const cloze = splitCloze(sentence.text).cloze;
@@ -83,6 +84,7 @@ describe("App against recorded API responses", () => {
   it("plays text input, replaying a miss at the end of the round", async () => {
     const { lastFrame, stdin } = await openPairing();
     await press(stdin, DOWN, DOWN, ENTER, DOWN, ENTER);
+    await waitForText(lastFrame, collectionRound[0].translation);
 
     await press(stdin, "nope", ENTER);
     expect(stripAnsi(lastFrame()!)).toContain(`2/${collectionRound.length + 1}`);
@@ -92,6 +94,7 @@ describe("App against recorded API responses", () => {
   it("browses the other collections and starts a new one", async () => {
     const { lastFrame, stdin } = await openPairing();
     await press(stdin, UP, ENTER);
+    await waitForText(lastFrame, "All Español collections");
 
     const frame = stripAnsi(lastFrame()!);
     expect(frame).toContain("All Español collections");
@@ -99,7 +102,7 @@ describe("App against recorded API responses", () => {
     expect(frame).not.toContain("My Words");
 
     await press(stdin, ENTER, ENTER);
-    expect(stripAnsi(lastFrame()!)).toContain("Beginner A1");
+    await waitForText(lastFrame, collectionRound[0].translation);
     await press(stdin, "1");
     const beginner = collections.find((collection: { name: string }) => collection.name === "Beginner A1");
     expect(server.answers()[0].url.toString()).toBe(beginner.collectionClozeSentencesAnswerUrl);

@@ -8,7 +8,7 @@ import type { AnsweredSentence } from "../components/SentenceCard.js";
 import { TROPHY } from "../sprites.js";
 import { colors } from "../theme.js";
 
-export type RoundResult = AnsweredSentence & { sentence: Sentence };
+export type RoundResult = AnsweredSentence & { sentence: Sentence; usedHint: boolean };
 
 type RoundSummaryProps = {
   elapsedSeconds: number;

@@ -24,8 +24,32 @@ export type Collection = {
   proOnly: boolean;
 };
 
+export type ExplanationWord = {
+  features: string[];
+  gloss: string;
+  lemma: string;
+  note: string | null;
+  pos: string;
+  reading: string | null;
+  surface: string;
+};
+
+export type StructuredExplanation = {
+  alternative: string | null;
+  breakdown: ExplanationWord[];
+  literalTranslation: string | null;
+  sections: { body: string; examples: { text: string; translation: string }[]; type: "grammar" | "pitfall" | "register" }[];
+  sentenceReading: string | null;
+  translation: string;
+};
+
+export type Explanation = { structured?: StructuredExplanation; text?: string };
+
 export type Sentence = {
   id: number;
+  explanation?: string | null;
+  explanationJobUrl?: string;
+  structuredExplanation?: StructuredExplanation | null;
   alternativeAnswers: string[];
   collectionClozeSentencesAnswerUrl?: string;
   hint?: string | null;
@@ -149,12 +173,14 @@ export async function saveAnswer({
   mode,
   secondsSpent,
   sentence,
+  usedHint,
 }: {
   answerUrl: string;
   correct: boolean;
   mode: PlayMode;
   secondsSpent: number;
   sentence: Sentence;
+  usedHint: boolean;
 }): Promise<AnswerResult> {
   return request<AnswerResult>(answerUrl, {
     body: {
@@ -165,10 +191,54 @@ export async function saveAnswer({
       mode: mode === "flashcard" ? "multiple_choice" : mode,
       skill: "vocabulary",
       time: secondsSpent,
-      used_hint: false,
+      used_hint: usedHint,
     },
     method: "PUT",
   });
+}
+
+type ExplanationJob = {
+  tracker: { explanation: string | null; status: string | null; structuredExplanation: StructuredExplanation | null };
+};
+
+export class ExplanationLimitError extends Error {}
+
+function explanationFrom(job: ExplanationJob): Explanation | undefined {
+  const { explanation, status, structuredExplanation } = job.tracker;
+  if (status === "failed") throw new Error("Couldn't explain this sentence. Try again later.");
+  if (status !== "complete") return undefined;
+  if (!structuredExplanation && !explanation) throw new Error("No explanation available.");
+  return { structured: structuredExplanation || undefined, text: explanation || undefined };
+}
+
+const POLL_INTERVAL_MS = 2000;
+const MAX_POLLS = 75;
+
+// Same flow as the mobile app: use what's there, otherwise ask for one and poll until it's written.
+export async function getExplanation(sentence: Sentence): Promise<Explanation> {
+  if (sentence.structuredExplanation || sentence.explanation) {
+    return { structured: sentence.structuredExplanation || undefined, text: sentence.explanation || undefined };
+  }
+  if (!sentence.explanationJobUrl) throw new Error("No explanation available.");
+
+  const existing = explanationFrom(await request<ExplanationJob>(sentence.explanationJobUrl));
+  if (existing) return existing;
+
+  try {
+    await request<ExplanationJob>(sentence.explanationJobUrl, { method: "POST" });
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 400) {
+      throw new ExplanationLimitError("You've used all your explanations this month.");
+    }
+    throw error;
+  }
+
+  for (let poll = 0; poll < MAX_POLLS; poll++) {
+    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+    const explanation = explanationFrom(await request<ExplanationJob>(sentence.explanationJobUrl));
+    if (explanation) return explanation;
+  }
+  throw new Error("The explanation is taking too long. Try again later.");
 }
 
 function localDate(): string {

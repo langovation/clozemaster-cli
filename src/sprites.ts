@@ -15,6 +15,19 @@ const LARGE_GLYPHS: Glyphs = {
   Z: ["#####", "....#", "...#.", "..#..", ".#...", "#....", "#####"],
 };
 
+const SMALL_GLYPHS: Glyphs = {
+  A: [".#.", "#.#", "###", "#.#", "#.#"],
+  C: [".##", "#..", "#..", "#..", ".##"],
+  E: ["###", "#..", "##.", "#..", "###"],
+  L: ["#..", "#..", "#..", "#..", "###"],
+  M: ["#.#", "###", "###", "#.#", "#.#"],
+  O: [".#.", "#.#", "#.#", "#.#", ".#."],
+  R: ["##.", "#.#", "##.", "#.#", "#.#"],
+  S: [".##", "#..", ".#.", "..#", "##."],
+  T: ["###", ".#.", ".#.", ".#.", ".#."],
+  Z: ["###", "..#", ".#.", "#..", "###"],
+};
+
 // Each glyph row gets a shade from light to dark, plus a drop shadow, arcade style.
 const ROW_SHADES = ["1", "2", "3", "4", "5", "6", "7"];
 
@@ -52,6 +65,12 @@ export const LOGO: Sprite = { palette: LOGO_PALETTE, rows: pixelText("CLOZEMASTE
 export const STACKED_LOGO: Sprite = {
   palette: LOGO_PALETTE,
   rows: [...pixelText("CLOZE", LARGE_GLYPHS), ...pixelText("MASTER", LARGE_GLYPHS)],
+};
+
+// For very narrow terminals: the same, in a 3x5 font.
+export const SMALL_STACKED_LOGO: Sprite = {
+  palette: LOGO_PALETTE,
+  rows: [...pixelText("CLOZE", SMALL_GLYPHS), ...pixelText("MASTER", SMALL_GLYPHS)],
 };
 
 export const TROPHY: Sprite = {

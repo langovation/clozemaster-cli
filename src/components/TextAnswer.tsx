@@ -3,17 +3,26 @@ import { Box, Text, useInput } from "ink";
 import TextInput from "ink-text-input";
 import type { Sentence } from "../api.js";
 import { cycleLastLetterAccent } from "../accents.js";
-import { isCorrectAnswer, isOnTrack, lettersOff } from "../answers.js";
+import { isCorrectAnswer, isOnTrack, lettersOff, withNextLetter } from "../answers.js";
 import { useSettings } from "../SettingsContext.js";
 import { colors } from "../theme.js";
 
-export function TextAnswer({ onAnswer, sentence }: { onAnswer: (answer: string) => void; sentence: Sentence }) {
+type TextAnswerProps = { onAnswer: (answer: string, usedHint: boolean) => void; sentence: Sentence };
+
+export const HINT_KEY = "?";
+
+export function TextAnswer({ onAnswer, sentence }: TextAnswerProps) {
   const { settings } = useSettings();
   const [answer, setAnswer] = useState("");
+  const [usedHint, setUsedHint] = useState(false);
   const [spellingHint, setSpellingHint] = useState<{ answer: string; lettersOff: number }>();
   const check = { strictAccents: settings.strictAccents };
 
-  useInput((_input, key) => {
+  useInput((input, key) => {
+    if (input === HINT_KEY) {
+      setUsedHint(true);
+      setAnswer((current) => withNextLetter(current, sentence, check));
+    }
     if (key.upArrow) setAnswer((current) => cycleLastLetterAccent(current, 1));
     if (key.downArrow) setAnswer((current) => cycleLastLetterAccent(current, -1));
   });
@@ -25,7 +34,7 @@ export function TextAnswer({ onAnswer, sentence }: { onAnswer: (answer: string) 
       setSpellingHint({ answer: submitted, lettersOff: offBy });
       return;
     }
-    onAnswer(submitted);
+    onAnswer(submitted, usedHint);
   }
 
   const typingColor = settings.typingColorHint && answer ? (isOnTrack(answer, sentence, check) ? colors.brand : colors.danger) : undefined;
@@ -35,7 +44,12 @@ export function TextAnswer({ onAnswer, sentence }: { onAnswer: (answer: string) 
       <Box>
         <Text color={colors.brand}>❯ </Text>
         <Text color={typingColor}>
-          <TextInput value={answer} onChange={setAnswer} onSubmit={submit} placeholder="type the missing word" />
+          <TextInput
+            value={answer}
+            onChange={(typed) => !typed.includes(HINT_KEY) && setAnswer(typed)}
+            onSubmit={submit}
+            placeholder="type the missing word"
+          />
         </Text>
       </Box>
       {spellingHint && (

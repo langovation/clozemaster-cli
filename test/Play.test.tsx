@@ -148,4 +148,49 @@ describe("Play", () => {
       [8, true],
     ]);
   });
+
+  it("fills in the next letter for a hint and halves the points", async () => {
+    const { lastFrame, stdin } = renderPlay("text_input");
+    await settle();
+    await press(stdin, "mx", "?");
+    expect(stripAnsi(lastFrame()!)).toContain("❯ mu");
+    await press(stdin, "cha", ENTER);
+    expect(api.saveAnswer).toHaveBeenCalledWith(expect.objectContaining({ correct: true, usedHint: true }));
+    await press(stdin, ENTER);
+    expect(stripAnsi(lastFrame()!)).toContain("+4 points");
+  });
+
+  it("shows the explanation after answering", async () => {
+    const explained = {
+      ...sentence,
+      structuredExplanation: {
+        alternative: null,
+        breakdown: [{ features: ["feminine", "singular"], gloss: "a lot of", lemma: "mucho", note: "Agrees with hambre.", pos: "determiner", reading: null, surface: "mucha" }],
+        literalTranslation: "I have much hunger.",
+        sections: [{ body: "Hambre is feminine.", examples: [], type: "pitfall" as const }],
+        sentenceReading: null,
+        translation: "I'm very hungry.",
+      },
+    };
+    vi.mocked(api.getRound).mockResolvedValue({ collectionClozeSentences: [explained], wordBank: [] });
+    const { lastFrame, stdin } = renderPlay("text_input");
+    await settle();
+    await press(stdin, "mucha", ENTER);
+    expect(stripAnsi(lastFrame()!)).toContain("e explain");
+
+    await press(stdin, "e");
+    const frame = stripAnsi(lastFrame()!);
+    expect(frame).toContain("Explanation");
+    expect(frame).toContain("mucha a lot of");
+    expect(frame).toContain("mucho · determiner, feminine, singular");
+    expect(frame).toContain("Literally");
+    expect(frame).toContain("Common mistake");
+  });
+
+  it("doesn't offer explain when there's nothing to explain", async () => {
+    const { lastFrame, stdin } = renderPlay("text_input");
+    await settle();
+    await press(stdin, "mucha", ENTER);
+    expect(stripAnsi(lastFrame()!)).not.toContain("explain");
+  });
 });

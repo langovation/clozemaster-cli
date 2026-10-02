@@ -1,11 +1,11 @@
 import React from "react";
 import { Box, Text, useStdout } from "ink";
-import { LOGO, STACKED_LOGO } from "../sprites.js";
+import { LOGO, SMALL_STACKED_LOGO, STACKED_LOGO } from "../sprites.js";
 import { colors } from "../theme.js";
 import { PixelArt } from "./PixelArt.js";
 
 export function logoForWidth(columns: number) {
-  return [LOGO, STACKED_LOGO].find((sprite) => Math.max(...sprite.rows.map((row) => row.length)) <= columns);
+  return [LOGO, STACKED_LOGO, SMALL_STACKED_LOGO].find((sprite) => Math.max(...sprite.rows.map((row) => row.length)) <= columns);
 }
 
 function Logo() {

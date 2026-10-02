@@ -7,6 +7,15 @@ export const ESCAPE = "\u001B";
 
 export const settle = () => new Promise((resolve) => setTimeout(resolve, 30));
 
+// Polls instead of guessing a delay, so slow runs don't flake.
+export async function waitForText(lastFrame: () => string | undefined, text: string, timeout = 2000) {
+  const startedAt = Date.now();
+  while (!stripAnsi(lastFrame() || "").includes(text)) {
+    if (Date.now() - startedAt > timeout) throw new Error(`Timed out waiting for "${text}" in:\n${stripAnsi(lastFrame() || "")}`);
+    await settle();
+  }
+}
+
 export async function press(stdin: { write: (input: string) => void }, ...keys: string[]) {
   for (const key of keys) {
     stdin.write(key);

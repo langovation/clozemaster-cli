@@ -33,6 +33,16 @@ export function isOnTrack(typed: string, sentence: Sentence, check: AnswerCheck)
   return acceptedAnswers(sentence).some((accepted) => normalize(accepted, check).startsWith(normalize(typed, check)));
 }
 
+// The web's next-letter hint: keep what's right so far and add the next letter of the cloze.
+export function withNextLetter(typed: string, sentence: Sentence, check: AnswerCheck): string {
+  const cloze = splitCloze(sentence.text).cloze;
+  let matching = 0;
+  while (matching < typed.length && matching < cloze.length && normalize(typed[matching], check) === normalize(cloze[matching], check)) {
+    matching++;
+  }
+  return cloze.slice(0, Math.min(matching + 1, cloze.length));
+}
+
 // How many letters a wrong answer is off by, when it's close enough (2 or fewer) for a spelling hint.
 export function lettersOff(answer: string, sentence: Sentence, check: AnswerCheck): number | undefined {
   const distance = levenshtein(normalize(answer, check), normalize(splitCloze(sentence.text).cloze, check));
