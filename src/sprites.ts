@@ -54,34 +54,6 @@ export const STACKED_LOGO: Sprite = {
   rows: [...pixelText("CLOZE", LARGE_GLYPHS), ...pixelText("MASTER", LARGE_GLYPHS)],
 };
 
-export const CHECK: Sprite = {
-  palette: { G: "#5CB85C", g: "#2F822F" },
-  rows: [
-    ".........GG",
-    "........GGg",
-    "GG.....GGg.",
-    "gGG...GGg..",
-    ".gGG.GGg...",
-    "..gGGGg....",
-    "...gGg.....",
-    "....g......",
-  ],
-};
-
-export const CROSS: Sprite = {
-  palette: { R: "#D9534F", r: "#A11E1A" },
-  rows: [
-    "RR....RR",
-    "RRR..RRr",
-    ".RRRRRr.",
-    "..RRRr..",
-    ".RRRRRR.",
-    "RRRr.RRR",
-    "RRr...RR",
-    ".r.....r",
-  ],
-};
-
 export const TROPHY: Sprite = {
   palette: { B: "#6B4A1F", D: "#A8792A", L: "#F5D78E", Y: "#D9A441" },
   rows: [

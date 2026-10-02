@@ -4,21 +4,34 @@ import type { Sentence } from "../api.js";
 import { splitCloze } from "../answers.js";
 import { colors } from "../theme.js";
 
-export function SentenceCard({ isCorrect, sentence }: { isCorrect?: boolean; sentence: Sentence }) {
+export type AnsweredSentence = { answer: string; isCorrect: boolean; points: number };
+
+type SentenceCardProps = { answered?: AnsweredSentence; isRevealed?: boolean; sentence: Sentence };
+
+function Blank({ answered, cloze, isRevealed }: { answered?: AnsweredSentence; cloze: string; isRevealed?: boolean }) {
+  if (answered) return <Text bold color={answered.isCorrect ? colors.brand : colors.danger}>{answered.answer || cloze}</Text>;
+  if (isRevealed) return <Text bold>{cloze}</Text>;
+  return <Text color={colors.brand}>{"_".repeat(Math.max(cloze.length, 3))}</Text>;
+}
+
+export function SentenceCard({ answered, isRevealed, sentence }: SentenceCardProps) {
   const { after, before, cloze } = splitCloze(sentence.text);
-  const isAnswered = isCorrect !== undefined;
+  const showsCorrection = answered && !answered.isCorrect && answered.answer !== "";
   return (
-    <Box borderStyle="round" borderColor={colors.subtle} flexDirection="column" paddingX={1}>
-      <Text>
-        {before}
-        {isAnswered ? (
-          <Text bold color={isCorrect ? colors.brand : colors.danger}>{cloze}</Text>
-        ) : (
-          <Text color={colors.brand}>{"_".repeat(Math.max(cloze.length, 3))}</Text>
-        )}
-        {after}
-      </Text>
-      <Text dimColor>{sentence.translation}</Text>
+    <Box flexDirection="column">
+      <Box borderStyle="round" borderColor={colors.subtle} flexDirection="column" paddingX={1}>
+        <Text>
+          {before}
+          <Blank answered={answered} cloze={cloze} isRevealed={isRevealed} />
+          {after}
+        </Text>
+        <Text dimColor>{sentence.translation}</Text>
+      </Box>
+      {showsCorrection && (
+        <Box paddingLeft={2}>
+          <Text bold color={colors.brand}>{cloze}</Text>
+        </Box>
+      )}
     </Box>
   );
 }

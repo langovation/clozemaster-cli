@@ -13,6 +13,7 @@ export type LanguagePairing = {
 export type Collection = {
   id: number;
   collectionClozeSentencesAnswerUrl: string;
+  dashboardCollection: boolean;
   name: string;
   numMastered: number;
   numPlaying: number;
@@ -39,7 +40,7 @@ export type Round = {
   wordBank: string[];
 };
 
-export type PlayMode = "multiple_choice" | "text_input";
+export type PlayMode = "flashcard" | "multiple_choice" | "text_input";
 
 export type AnswerResult = {
   languagePairing: { numPointsToday: number; score: number };
@@ -152,7 +153,8 @@ export async function saveAnswer({
       correct,
       date: localDate(),
       id: sentence.id,
-      mode,
+      // Flashcards score like multiple choice, and the apps send them that way.
+      mode: mode === "flashcard" ? "multiple_choice" : mode,
       skill: "vocabulary",
       time: secondsSpent,
       used_hint: false,

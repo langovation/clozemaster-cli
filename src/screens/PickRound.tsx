@@ -1,6 +1,7 @@
 import React from "react";
 import { Box, Text, useInput } from "ink";
 import { getCollections, languagePairingPlayPath, type Collection, type LanguagePairing } from "../api.js";
+import { myCollections } from "../collectionSort.js";
 import { ErrorMessage } from "../components/ErrorMessage.js";
 import { Hints } from "../components/Hints.js";
 import { PixelArt } from "../components/PixelArt.js";
@@ -14,6 +15,23 @@ export type RoundChoice = { answerUrl?: string; playDataUrl: string; scope?: str
 
 type PickRoundProps = { onBack: () => void; onPick: (choice: RoundChoice) => void; pairing: LanguagePairing };
 
+function reviewChoice(pairing: LanguagePairing, collections: Collection[]): SelectItem<RoundChoice> {
+  const numDue = collections.reduce((sum, collection) => sum + collection.numReadyForReview, 0);
+  return {
+    detail: `${numDue} due`,
+    label: "Review",
+    value: { playDataUrl: languagePairingPlayPath(pairing), scope: "ready_for_review", title: "Review" },
+  };
+}
+
+function collectionChoice(collection: Collection): SelectItem<RoundChoice> {
+  return {
+    detail: `${collection.numReadyForReview} due`,
+    label: collection.name,
+    value: { answerUrl: collection.collectionClozeSentencesAnswerUrl, playDataUrl: collection.playDataUrl, title: collection.name },
+  };
+}
+
 export function PickRound({ onBack, onPick, pairing }: PickRoundProps) {
   const { data: collections, error, isLoading } = useRequest(() => getCollections(pairing), [pairing.id]);
 
@@ -21,16 +39,10 @@ export function PickRound({ onBack, onPick, pairing }: PickRoundProps) {
     if (key.escape) onBack();
   });
 
-  const playPath = languagePairingPlayPath(pairing);
-  const choices: SelectItem<RoundChoice>[] = [
-    { label: "Review", description: "sentences due", value: { playDataUrl: playPath, scope: "ready_for_review", title: "Review" } },
-    { label: "Most Common Words", value: { playDataUrl: playPath, scope: "frequency_collections", title: "Most Common Words" } },
-    ...playingFirst(collections || []).map((collection) => ({
-      description: collection.playing ? `${collection.numReadyForReview} to review` : collection.proOnly ? "Pro" : undefined,
-      label: collection.name,
-      value: { answerUrl: collection.collectionClozeSentencesAnswerUrl, playDataUrl: collection.playDataUrl, title: collection.name },
-    })),
-  ];
+  if (isLoading) return <Spinner label="Loading your collections…" />;
+  if (error || !collections) return <ErrorMessage error={error || new Error("No collections")} />;
+
+  const mine = myCollections(collections);
 
   return (
     <Box flexDirection="column" gap={1}>
@@ -44,15 +56,10 @@ export function PickRound({ onBack, onPick, pairing }: PickRoundProps) {
       </Box>
       <Box flexDirection="column">
         <Text bold>What do you want to play?</Text>
-        <Select items={choices} onSelect={onPick} />
-        {isLoading && <Spinner label="Loading collections…" />}
-        {error && <ErrorMessage error={error} />}
+        <Select items={[reviewChoice(pairing, collections), ...mine.map(collectionChoice)]} onSelect={onPick} />
+        {mine.length === 0 && <Text dimColor>Add collections to your dashboard on clozemaster.com to see them here.</Text>}
       </Box>
       <Hints hints={["enter to pick", "esc to go back"]} />
     </Box>
   );
-}
-
-function playingFirst(collections: Collection[]): Collection[] {
-  return [...collections].sort((first, second) => Number(second.playing) - Number(first.playing));
 }

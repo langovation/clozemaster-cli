@@ -4,7 +4,7 @@ import type { LanguagePairing, PlayMode } from "./api.js";
 import { getAuthToken, getStoredUsername } from "./config.js";
 import { Login } from "./screens/Login.js";
 import { PickLanguagePairing } from "./screens/PickLanguagePairing.js";
-import { PickMode } from "./screens/PickMode.js";
+import { nextMode, PickMode } from "./screens/PickMode.js";
 import { PickRound, type RoundChoice } from "./screens/PickRound.js";
 import { Play } from "./screens/Play.js";
 
@@ -26,7 +26,7 @@ function Screens({ forceLogin }: { forceLogin: boolean }) {
   const [choice, setChoice] = useState<RoundChoice>();
   const [mode, setMode] = useState<PlayMode>();
 
-  const toggleMode = () => setMode((current) => (current === "multiple_choice" ? "text_input" : "multiple_choice"));
+  const toggleMode = () => setMode((current) => current && nextMode(current));
 
   if (!isLoggedIn) {
     return (

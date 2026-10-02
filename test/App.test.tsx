@@ -6,31 +6,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../src/App.js";
 import { splitCloze } from "../src/answers.js";
 import { startFakeServer } from "./fakeServer.js";
-
-const ENTER = "\r";
-const DOWN = "\u001B[B";
-const ESCAPE = "\u001B";
+import { DOWN, ENTER, ESCAPE, press, settle, stripAnsi } from "./helpers.js";
 
 const fixture = (name: string) => JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures", `${name}.json`), "utf8"));
 const pairing = fixture("language_pairings").languagePairings[0];
 const collections = fixture("collections").collections;
-const commonWordsRound = fixture("round_frequency_collections").collectionClozeSentences;
 const collectionRound = fixture("round_collection").collectionClozeSentences;
-const playingCollection = collections.find((collection: { playing: boolean }) => collection.playing);
-
-const settle = () => new Promise((resolve) => setTimeout(resolve, 30));
-
-async function press(stdin: { write: (input: string) => void }, ...keys: string[]) {
-  for (const key of keys) {
-    stdin.write(key);
-    await settle();
-  }
-}
-
-function correctOptionNumber(frame: string, sentence: { text: string }) {
-  const cloze = splitCloze(sentence.text).cloze;
-  return frame.match(new RegExp(`(\\d) ${cloze}(\\s|$)`))![1];
-}
+const core = collections.find((collection: { name: string }) => collection.name === "Core 1,000 Collection");
 
 describe("App against recorded API responses", () => {
   let server: ReturnType<typeof startFakeServer>;
@@ -53,19 +35,22 @@ describe("App against recorded API responses", () => {
     return app;
   }
 
-  it("lists the pairing's collections, playing ones first", async () => {
-    const { lastFrame } = await openPairing();
-    const frame = lastFrame()!;
-    expect(frame).toContain("Review");
-    expect(frame).toContain("Most Common Words");
-    expect(frame.indexOf(playingCollection.name)).toBeLessThan(frame.indexOf(collections.find((c: { playing: boolean }) => !c.playing).name));
-    expect(frame).not.toContain("Cannot read properties");
+  it("lists only my dashboard collections, custom ones included, in the web's order", async () => {
+    const frame = stripAnsi((await openPairing()).lastFrame()!);
+    const names = ["Review", "500 Most Common", "Core 1,000 Collection", "My Words", "Verbs"];
+    const positions = names.map((name) => frame.indexOf(name));
+    expect(positions.every((position) => position >= 0)).toBe(true);
+    expect([...positions].sort((a, b) => a - b)).toEqual(positions);
+    expect(frame).not.toContain("Beginner A1");
+    expect(frame).not.toContain("Most Common Words");
+    expect(frame).toMatch(/My Words\s+3 due/);
   });
 
-  it("asks for the answer mode after picking what to play", async () => {
+  it("asks how to answer after picking a collection, flashcards included", async () => {
     const { lastFrame, stdin } = await openPairing();
-    await press(stdin, DOWN, ENTER);
+    await press(stdin, DOWN, DOWN, ENTER);
     expect(lastFrame()).toContain("How do you want to answer?");
+    expect(lastFrame()).toContain("Flashcards");
   });
 
   it("says when there is nothing to review and goes back on esc", async () => {
@@ -76,40 +61,28 @@ describe("App against recorded API responses", () => {
     expect(lastFrame()).toContain("What do you want to play?");
   });
 
-  it("plays a full multiple choice round of Most Common Words", async () => {
+  it("plays a full multiple choice round, saving each answer to the collection", async () => {
     const { lastFrame, stdin } = await openPairing();
-    await press(stdin, DOWN, ENTER, ENTER);
+    await press(stdin, DOWN, DOWN, ENTER, ENTER);
 
-    for (const sentence of commonWordsRound) {
-      expect(lastFrame()).toContain(sentence.translation);
-      await press(stdin, correctOptionNumber(lastFrame()!, sentence));
-      expect(lastFrame()).toContain("Correct!");
-      await press(stdin, ENTER);
+    for (const sentence of collectionRound) {
+      const cloze = splitCloze(sentence.text).cloze;
+      const optionNumber = stripAnsi(lastFrame()!).match(new RegExp(`(\\d) ${cloze}(\\s|$)`))![1];
+      await press(stdin, optionNumber, ENTER);
     }
 
-    expect(lastFrame()).toContain("Round complete!");
-    expect(lastFrame()).toContain(`${commonWordsRound.length}/${commonWordsRound.length} correct`);
-    expect(lastFrame()).toContain("52 points today");
-    expect(server.answers().map((answer) => answer.url.pathname)).toEqual(
-      commonWordsRound.map((sentence: { collectionClozeSentencesAnswerUrl: string }) => new URL(sentence.collectionClozeSentencesAnswerUrl).pathname),
-    );
-    expect(server.answers()[0].body).toMatchObject({ correct: true, id: commonWordsRound[0].id, mode: "multiple_choice" });
+    expect(stripAnsi(lastFrame()!)).toContain(`${collectionRound.length} correct · 0 missed`);
+    expect(server.answers()).toHaveLength(collectionRound.length);
+    expect(server.answers().every((answer) => answer.url.toString() === core.collectionClozeSentencesAnswerUrl)).toBe(true);
+    expect(server.answers()[0].body).toMatchObject({ correct: true, id: collectionRound[0].id, mode: "multiple_choice" });
   });
 
-  it("plays a collection with text input, saving to the collection's answer url", async () => {
+  it("plays text input, replaying a miss at the end of the round", async () => {
     const { lastFrame, stdin } = await openPairing();
     await press(stdin, DOWN, DOWN, ENTER, DOWN, ENTER);
-    expect(lastFrame()).toContain(playingCollection.name);
 
-    await press(stdin, ...splitCloze(collectionRound[0].text).cloze, ENTER);
-    expect(lastFrame()).toContain("Correct!");
-    await press(stdin, ENTER, "nope", ENTER);
-    expect(lastFrame()).toContain(`The answer was ${splitCloze(collectionRound[1].text).cloze}`);
-
-    expect(server.answers().map((answer) => answer.body)).toMatchObject([
-      { correct: true, id: collectionRound[0].id, mode: "text_input" },
-      { correct: false, id: collectionRound[1].id, mode: "text_input" },
-    ]);
-    expect(server.answers()[0].url.toString()).toBe(playingCollection.collectionClozeSentencesAnswerUrl);
+    await press(stdin, "nope", ENTER);
+    expect(stripAnsi(lastFrame()!)).toContain(`2/${collectionRound.length + 1}`);
+    expect(server.answers()[0].body).toMatchObject({ correct: false, id: collectionRound[0].id, mode: "text_input" });
   });
 });

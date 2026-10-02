@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Box, Text, useInput } from "ink";
 import { colors } from "../theme.js";
 
-export type SelectItem<T> = { description?: string; label: string; value: T };
+export type SelectItem<T> = { detail?: string; label: string; value: T };
 
 const VISIBLE_ITEMS = 12;
 
@@ -23,11 +23,17 @@ export function Select<T>({ items, onSelect }: { items: SelectItem<T>[]; onSelec
       {visibleItems.map((item, offset) => {
         const isHighlighted = firstVisible + offset === highlighted;
         return (
-          <Text key={item.label} color={isHighlighted ? colors.brand : undefined} wrap="truncate-end">
-            {isHighlighted ? "❯ " : "  "}
-            {item.label}
-            {item.description && <Text dimColor> {item.description}</Text>}
-          </Text>
+          <Box key={item.label} justifyContent="space-between" gap={2}>
+            <Text color={isHighlighted ? colors.brand : undefined} wrap="truncate-end">
+              {isHighlighted ? "❯ " : "  "}
+              {item.label}
+            </Text>
+            {item.detail && (
+              <Box flexShrink={0}>
+                <Text color={isHighlighted ? colors.brand : undefined} dimColor={!isHighlighted}>{item.detail}</Text>
+              </Box>
+            )}
+          </Box>
         );
       })}
       {items.length > VISIBLE_ITEMS && <Text dimColor>  {highlighted + 1}/{items.length}</Text>}

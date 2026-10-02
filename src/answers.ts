@@ -34,7 +34,7 @@ export function multipleChoiceOptions(sentence: Sentence, wordBank: string[]): s
 export function pointsFor({ correct, mode, sentence }: { correct: boolean; mode: PlayMode; sentence: Sentence }) {
   if (!correct) return 0;
   const newLevel = Math.min((sentence.level || 0) + 1, 4);
-  const points = newLevel * (mode === "multiple_choice" ? 4 : 8);
+  const points = newLevel * (mode === "text_input" ? 8 : 4);
   const isEarlyReview = sentence.nextReview !== null && new Date(sentence.nextReview) > new Date();
   return isEarlyReview ? Math.floor(points / 2) : points;
 }

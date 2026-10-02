@@ -7,14 +7,14 @@ import { colors } from "../theme.js";
 
 type RoundSummaryProps = {
   numCorrect: number;
+  numMissed: number;
   numPointsToday?: number;
   onMenu: () => void;
   onPlayAgain: () => void;
   points: number;
-  total: number;
 };
 
-export function RoundSummary({ numCorrect, numPointsToday, onMenu, onPlayAgain, points, total }: RoundSummaryProps) {
+export function RoundSummary({ numCorrect, numMissed, numPointsToday, onMenu, onPlayAgain, points }: RoundSummaryProps) {
   useInput((_input, key) => {
     if (key.return) onPlayAgain();
     if (key.escape) onMenu();
@@ -25,11 +25,12 @@ export function RoundSummary({ numCorrect, numPointsToday, onMenu, onPlayAgain, 
         <PixelArt sprite={TROPHY} />
         <Box flexDirection="column">
           <Text bold color={colors.gold}>Round complete!</Text>
-          <Text>{numCorrect}/{total} correct · <Text color={colors.gold}>+{points} points</Text></Text>
+          <Text>{numCorrect} correct · {numMissed} missed</Text>
+          <Text color={colors.gold}>+{points} points</Text>
           {numPointsToday !== undefined && <Text dimColor>{numPointsToday} points today</Text>}
         </Box>
       </Box>
-      <Hints hints={["enter for another round", "esc for menu"]} />
+      <Hints hints={["enter: another round", "esc: menu"]} />
     </Box>
   );
 }

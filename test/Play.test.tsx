@@ -3,6 +3,7 @@ import { render } from "ink-testing-library";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../src/api.js";
 import { Play } from "../src/screens/Play.js";
+import { ENTER, press, settle, showsInColor, stripAnsi } from "./helpers.js";
 
 const sentence: api.Sentence = {
   alternativeAnswers: [],
@@ -15,7 +16,11 @@ const sentence: api.Sentence = {
   translation: "I'm very hungry.",
 };
 
-const flush = () => new Promise((resolve) => setTimeout(resolve, 20));
+const choice = { playDataUrl: "https://example.com/play", title: "Core 1,000 Collection" };
+
+function renderPlay(mode: api.PlayMode) {
+  return render(<Play choice={choice} mode={mode} onMenu={vi.fn()} onToggleMode={vi.fn()} />);
+}
 
 describe("Play", () => {
   beforeEach(() => {
@@ -24,34 +29,51 @@ describe("Play", () => {
     vi.spyOn(api, "saveAnswer").mockResolvedValue({ languagePairing: { numPointsToday: 40, score: 900 } });
   });
 
-  const choice = { playDataUrl: "https://example.com/play", title: "Most Common Words" };
+  it("fills in a correct answer in green and finishes the round", async () => {
+    const { lastFrame, stdin } = renderPlay("multiple_choice");
+    await settle();
+    await press(stdin, stripAnsi(lastFrame()!).match(/(\d) mucha/)![1]);
 
-  it("saves a correct multiple choice answer and shows the round summary", async () => {
-    const { lastFrame, stdin } = render(<Play choice={choice} mode="multiple_choice" onMenu={vi.fn()} onToggleMode={vi.fn()} />);
-    await flush();
-    const frame = lastFrame()!;
-    const correctOptionNumber = frame.match(/(\d) mucha/)![1];
-
-    stdin.write(correctOptionNumber);
-    await flush();
-    expect(lastFrame()).toContain("Correct!");
+    expect(showsInColor(lastFrame()!, "mucha", "brand")).toBe(true);
     expect(api.saveAnswer).toHaveBeenCalledWith(expect.objectContaining({ correct: true, mode: "multiple_choice" }));
 
-    stdin.write("\r");
-    await flush();
-    expect(lastFrame()).toContain("Round complete!");
+    await press(stdin, ENTER);
+    expect(stripAnsi(lastFrame()!)).toContain("1 correct · 0 missed");
     expect(lastFrame()).toContain("40 points today");
   });
 
-  it("marks a wrong typed answer incorrect and shows the right word", async () => {
-    const { lastFrame, stdin } = render(<Play choice={choice} mode="text_input" onMenu={vi.fn()} onToggleMode={vi.fn()} />);
-    await flush();
+  it("shows a wrong answer in red with the right one in green below", async () => {
+    const { lastFrame, stdin } = renderPlay("text_input");
+    await settle();
+    await press(stdin, "poco", ENTER);
 
-    stdin.write("poco");
-    await flush();
-    stdin.write("\r");
-    await flush();
-    expect(lastFrame()).toContain("The answer was mucha");
-    expect(api.saveAnswer).toHaveBeenCalledWith(expect.objectContaining({ correct: false, mode: "text_input" }));
+    expect(showsInColor(lastFrame()!, "poco", "danger")).toBe(true);
+    expect(showsInColor(lastFrame()!, "mucha", "brand")).toBe(true);
+    expect(stripAnsi(lastFrame()!)).not.toContain("answer was");
+  });
+
+  it("sends a missed sentence to the back of the round", async () => {
+    const { lastFrame, stdin } = renderPlay("text_input");
+    await settle();
+    await press(stdin, "poco", ENTER, ENTER);
+
+    expect(stripAnsi(lastFrame()!)).toContain("2/2");
+    expect(lastFrame()).toContain("I'm very hungry.");
+
+    await press(stdin, "mucha", ENTER, ENTER);
+    expect(stripAnsi(lastFrame()!)).toContain("1 correct · 1 missed");
+  });
+
+  it("reveals a flashcard and saves the self-grade as multiple choice", async () => {
+    const { lastFrame, stdin } = renderPlay("flashcard");
+    await settle();
+    expect(stripAnsi(lastFrame()!)).not.toContain("mucha");
+
+    await press(stdin, " ");
+    expect(stripAnsi(lastFrame()!)).toContain("Tengo mucha hambre.");
+
+    await press(stdin, "2");
+    expect(api.saveAnswer).toHaveBeenCalledWith(expect.objectContaining({ correct: true, mode: "flashcard" }));
+    expect(stripAnsi(lastFrame()!)).toContain("1 correct · 0 missed");
   });
 });
