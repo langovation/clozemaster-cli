@@ -3,6 +3,7 @@ import { Box, Text, useInput } from "ink";
 import { getLanguagePairings, type LanguagePairing } from "../api.js";
 import { ErrorMessage } from "../components/ErrorMessage.js";
 import { Hints } from "../components/Hints.js";
+import { openFeedbackEmail } from "../feedback.js";
 import { Select } from "../components/Select.js";
 import { Spinner } from "../components/Spinner.js";
 import { Welcome } from "../components/Welcome.js";
@@ -15,6 +16,7 @@ export function PickLanguagePairing({ onOpenSettings, onPick, username }: PickLa
 
   useInput((input) => {
     if (input === "s") onOpenSettings();
+    if (input === "f") openFeedbackEmail();
   });
 
   return (
@@ -36,7 +38,7 @@ export function PickLanguagePairing({ onOpenSettings, onPick, username }: PickLa
           />
         </Box>
       )}
-      <Hints hints={["enter to pick", "s settings", "ctrl+c to quit"]} />
+      <Hints hints={["enter to pick", "s settings", "f feedback", "ctrl+c to quit"]} />
     </Box>
   );
 }

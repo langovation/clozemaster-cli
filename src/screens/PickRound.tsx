@@ -4,6 +4,7 @@ import { getCollections, languagePairingPlayPath, type Collection, type Language
 import { myCollections } from "../collectionSort.js";
 import { ErrorMessage } from "../components/ErrorMessage.js";
 import { Hints } from "../components/Hints.js";
+import { openFeedbackEmail } from "../feedback.js";
 import { PixelArt } from "../components/PixelArt.js";
 import { Select, type SelectItem } from "../components/Select.js";
 import { Spinner } from "../components/Spinner.js";
@@ -46,6 +47,7 @@ export function PickRound({ onBack, onBrowse, onOpenSettings, onPick, pairing }:
   useInput((input, key) => {
     if (key.escape) onBack();
     if (input === "s") onOpenSettings();
+    if (input === "f") openFeedbackEmail();
   });
 
   if (isLoading) return <Spinner label="Loading your collections…" />;
@@ -74,7 +76,7 @@ export function PickRound({ onBack, onBrowse, onOpenSettings, onPick, pairing }:
           onSelect={(picked) => (picked === BROWSE ? onBrowse() : onPick(picked))}
         />
       </Box>
-      <Hints hints={["enter to pick", "s settings", "esc to go back"]} />
+      <Hints hints={["enter to pick", "s settings", "f feedback", "esc to go back"]} />
     </Box>
   );
 }
