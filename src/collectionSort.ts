@@ -29,3 +29,8 @@ export function compareCollectionNames(first: Collection, second: Collection): n
 export function myCollections(collections: Collection[]): Collection[] {
   return collections.filter((collection) => collection.dashboardCollection).sort(compareCollectionNames);
 }
+
+// Everything else the pairing offers, for browsing to start something new.
+export function otherCollections(collections: Collection[]): Collection[] {
+  return collections.filter((collection) => !collection.dashboardCollection).sort(compareCollectionNames);
+}

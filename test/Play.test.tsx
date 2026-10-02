@@ -76,4 +76,23 @@ describe("Play", () => {
     expect(api.saveAnswer).toHaveBeenCalledWith(expect.objectContaining({ correct: true, mode: "flashcard" }));
     expect(stripAnsi(lastFrame()!)).toContain("1 correct · 0 missed");
   });
+
+  it("goes back to the previous flashcard and only saves the final grade", async () => {
+    const second = { ...sentence, id: 8, text: "Tengo {{sueño}}.", translation: "I'm sleepy." };
+    vi.mocked(api.getRound).mockResolvedValue({ collectionClozeSentences: [sentence, second], wordBank: [] });
+    const { lastFrame, stdin } = renderPlay("flashcard");
+    await settle();
+
+    await press(stdin, " ", "1");
+    expect(stripAnsi(lastFrame()!)).toContain("2/3");
+    await press(stdin, "b");
+    expect(stripAnsi(lastFrame()!)).toContain("Tengo mucha hambre.");
+    expect(stripAnsi(lastFrame()!)).toContain("1/2");
+
+    await press(stdin, "2", " ", "2");
+    expect(vi.mocked(api.saveAnswer).mock.calls.map(([saved]) => [saved.sentence.id, saved.correct])).toEqual([
+      [7, true],
+      [8, true],
+    ]);
+  });
 });

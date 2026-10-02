@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../src/App.js";
 import { splitCloze } from "../src/answers.js";
 import { startFakeServer } from "./fakeServer.js";
-import { DOWN, ENTER, ESCAPE, press, settle, stripAnsi } from "./helpers.js";
+import { DOWN, ENTER, ESCAPE, press, settle, stripAnsi, UP } from "./helpers.js";
 
 const fixture = (name: string) => JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures", `${name}.json`), "utf8"));
 const pairing = fixture("language_pairings").languagePairings[0];
@@ -84,5 +84,27 @@ describe("App against recorded API responses", () => {
     await press(stdin, "nope", ENTER);
     expect(stripAnsi(lastFrame()!)).toContain(`2/${collectionRound.length + 1}`);
     expect(server.answers()[0].body).toMatchObject({ correct: false, id: collectionRound[0].id, mode: "text_input" });
+  });
+
+  it("browses the other collections and starts a new one", async () => {
+    const { lastFrame, stdin } = await openPairing();
+    await press(stdin, UP, ENTER);
+
+    const frame = stripAnsi(lastFrame()!);
+    expect(frame).toContain("All Español collections");
+    expect(frame).toContain("Beginner A1");
+    expect(frame).not.toContain("My Words");
+
+    await press(stdin, ENTER, ENTER);
+    expect(stripAnsi(lastFrame()!)).toContain("Beginner A1");
+    await press(stdin, "1");
+    const beginner = collections.find((collection: { name: string }) => collection.name === "Beginner A1");
+    expect(server.answers()[0].url.toString()).toBe(beginner.collectionClozeSentencesAnswerUrl);
+  });
+
+  it("goes back from browsing to my collections on esc", async () => {
+    const { lastFrame, stdin } = await openPairing();
+    await press(stdin, UP, ENTER, ESCAPE);
+    expect(lastFrame()).toContain("What do you want to play?");
   });
 });

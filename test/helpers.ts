@@ -2,6 +2,7 @@ import { colors } from "../src/theme.js";
 
 export const ENTER = "\r";
 export const DOWN = "\u001B[B";
+export const UP = "\u001B[A";
 export const ESCAPE = "\u001B";
 
 export const settle = () => new Promise((resolve) => setTimeout(resolve, 30));

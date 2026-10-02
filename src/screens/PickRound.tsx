@@ -13,7 +13,14 @@ import { useRequest } from "../useRequest.js";
 
 export type RoundChoice = { answerUrl?: string; playDataUrl: string; scope?: string; title: string };
 
-type PickRoundProps = { onBack: () => void; onPick: (choice: RoundChoice) => void; pairing: LanguagePairing };
+const BROWSE = "browse";
+
+type PickRoundProps = {
+  onBack: () => void;
+  onBrowse: () => void;
+  onPick: (choice: RoundChoice) => void;
+  pairing: LanguagePairing;
+};
 
 function reviewChoice(pairing: LanguagePairing, collections: Collection[]): SelectItem<RoundChoice> {
   const numDue = collections.reduce((sum, collection) => sum + collection.numReadyForReview, 0);
@@ -24,15 +31,15 @@ function reviewChoice(pairing: LanguagePairing, collections: Collection[]): Sele
   };
 }
 
-function collectionChoice(collection: Collection): SelectItem<RoundChoice> {
-  return {
-    detail: `${collection.numReadyForReview} due`,
-    label: collection.name,
-    value: { answerUrl: collection.collectionClozeSentencesAnswerUrl, playDataUrl: collection.playDataUrl, title: collection.name },
-  };
+export function collectionRoundChoice(collection: Collection): RoundChoice {
+  return { answerUrl: collection.collectionClozeSentencesAnswerUrl, playDataUrl: collection.playDataUrl, title: collection.name };
 }
 
-export function PickRound({ onBack, onPick, pairing }: PickRoundProps) {
+function collectionChoice(collection: Collection): SelectItem<RoundChoice> {
+  return { detail: `${collection.numReadyForReview} due`, label: collection.name, value: collectionRoundChoice(collection) };
+}
+
+export function PickRound({ onBack, onBrowse, onPick, pairing }: PickRoundProps) {
   const { data: collections, error, isLoading } = useRequest(() => getCollections(pairing), [pairing.id]);
 
   useInput((_input, key) => {
@@ -56,8 +63,14 @@ export function PickRound({ onBack, onPick, pairing }: PickRoundProps) {
       </Box>
       <Box flexDirection="column">
         <Text bold>What do you want to play?</Text>
-        <Select items={[reviewChoice(pairing, collections), ...mine.map(collectionChoice)]} onSelect={onPick} />
-        {mine.length === 0 && <Text dimColor>Add collections to your dashboard on clozemaster.com to see them here.</Text>}
+        <Select<RoundChoice | typeof BROWSE>
+          items={[
+            reviewChoice(pairing, collections),
+            ...mine.map(collectionChoice),
+            { label: "Browse all collections…", value: BROWSE },
+          ]}
+          onSelect={(picked) => (picked === BROWSE ? onBrowse() : onPick(picked))}
+        />
       </Box>
       <Hints hints={["enter to pick", "esc to go back"]} />
     </Box>

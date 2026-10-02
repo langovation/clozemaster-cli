@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Box, useStdout } from "ink";
 import type { LanguagePairing, PlayMode } from "./api.js";
 import { getAuthToken, getStoredUsername } from "./config.js";
+import { BrowseCollections } from "./screens/BrowseCollections.js";
 import { Login } from "./screens/Login.js";
 import { PickLanguagePairing } from "./screens/PickLanguagePairing.js";
 import { nextMode, PickMode } from "./screens/PickMode.js";
@@ -25,6 +26,7 @@ function Screens({ forceLogin }: { forceLogin: boolean }) {
   const [pairing, setPairing] = useState<LanguagePairing>();
   const [choice, setChoice] = useState<RoundChoice>();
   const [mode, setMode] = useState<PlayMode>();
+  const [isBrowsing, setIsBrowsing] = useState(false);
 
   const toggleMode = () => setMode((current) => current && nextMode(current));
 
@@ -39,13 +41,19 @@ function Screens({ forceLogin }: { forceLogin: boolean }) {
     );
   }
   if (!pairing) return <PickLanguagePairing onPick={setPairing} username={username} />;
-  if (!choice) return <PickRound onBack={() => setPairing(undefined)} onPick={setChoice} pairing={pairing} />;
+  if (!choice && isBrowsing) {
+    return <BrowseCollections onBack={() => setIsBrowsing(false)} onPick={setChoice} pairing={pairing} />;
+  }
+  if (!choice) {
+    return <PickRound onBack={() => setPairing(undefined)} onBrowse={() => setIsBrowsing(true)} onPick={setChoice} pairing={pairing} />;
+  }
   if (!mode) return <PickMode onBack={() => setChoice(undefined)} onPick={setMode} title={choice.title} />;
   return (
     <Play
       choice={choice}
       mode={mode}
       onMenu={() => {
+        setIsBrowsing(false);
         setChoice(undefined);
         setMode(undefined);
       }}

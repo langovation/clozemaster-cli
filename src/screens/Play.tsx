@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Box, Text, useInput } from "ink";
 import { getRound, saveAnswer, type PlayMode, type Sentence } from "../api.js";
 import { isCorrectAnswer, multipleChoiceOptions, pointsFor } from "../answers.js";
@@ -60,6 +60,8 @@ export function Play({ choice, mode, onMenu, onToggleMode }: PlayProps) {
   );
 }
 
+type PendingAnswer = AnsweredSentence & { index: number; secondsSpent: number; sentence: Sentence };
+
 type PlayRoundProps = Omit<PlayProps, "choice"> & {
   choice: RoundChoice;
   onPlayAgain: () => void;
@@ -76,43 +78,77 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onToggleMode, sentences,
   const [saveError, setSaveError] = useState<Error>();
   const [isRevealed, setIsRevealed] = useState(false);
   const shownAt = useRef(Date.now());
+  const pendingGrade = useRef<PendingAnswer | undefined>(undefined);
 
   const sentence = deck[index];
   const options = useMemo(() => sentence && multipleChoiceOptions(sentence, wordBank), [sentence]);
 
-  useInput((_input, key) => {
-    if (key.escape) onMenu();
+  useEffect(() => {
+    if (!sentence) savePendingGrade();
+  }, [sentence]);
+
+  useInput((input, key) => {
+    if (key.escape) {
+      savePendingGrade();
+      onMenu();
+    }
     if (key.tab && !answered) onToggleMode();
     if (key.return && answered) goToNextSentence();
+    if (mode === "flashcard" && (input === "b" || key.backspace || key.delete)) goBackToPreviousCard();
   });
 
-  function answer(attempt: string) {
-    const isCorrect = isCorrectAnswer(attempt, sentence);
-    setAnswered(record({ answer: attempt.trim(), isCorrect }));
-  }
-
   // Flashcards are self-graded, so there's nothing to show: straight on to the next card.
+  // The grade is held back until the next one so "back" can take it back without a server undo.
   function gradeFlashcard(isCorrect: boolean) {
-    record({ answer: "", isCorrect });
+    savePendingGrade();
+    pendingGrade.current = { ...record({ answer: "", isCorrect }), index, sentence };
     goToNextSentence();
   }
 
-  function record({ answer: attempt, isCorrect }: { answer: string; isCorrect: boolean }): AnsweredSentence {
-    const result = { answer: attempt, isCorrect, points: pointsFor({ correct: isCorrect, mode, sentence }) };
+  function goBackToPreviousCard() {
+    const previous = pendingGrade.current;
+    if (!previous) return;
+    pendingGrade.current = undefined;
+    setResults((current) => current.slice(0, -1));
+    if (!previous.isCorrect) setDeck((current) => current.slice(0, -1));
+    setAnswered(undefined);
+    setIsRevealed(true);
+    setIndex(previous.index);
+    shownAt.current = Date.now() - previous.secondsSpent * 1000;
+  }
+
+  function savePendingGrade() {
+    if (pendingGrade.current) submit(pendingGrade.current);
+    pendingGrade.current = undefined;
+  }
+
+  function answer(attempt: string) {
+    const isCorrect = isCorrectAnswer(attempt, sentence);
+    const result = record({ answer: attempt.trim(), isCorrect });
+    setAnswered(result);
+    submit({ ...result, sentence });
+  }
+
+  function record({ answer: attempt, isCorrect }: { answer: string; isCorrect: boolean }) {
+    const result = {
+      answer: attempt,
+      isCorrect,
+      points: pointsFor({ correct: isCorrect, mode, sentence }),
+      secondsSpent: Math.round((Date.now() - shownAt.current) / 1000),
+    };
     setResults((previous) => [...previous, result]);
     // Same as the web: a miss resets the sentence and sends it to the back of the round.
     if (!isCorrect) setDeck((current) => [...current, { ...sentence, level: 0 }]);
-    submit(isCorrect);
     return result;
   }
 
-  async function submit(isCorrect: boolean) {
+  async function submit({ isCorrect, secondsSpent, sentence }: Pick<PendingAnswer, "isCorrect" | "secondsSpent" | "sentence">) {
     try {
       const saved = await saveAnswer({
         answerUrl: sentence.collectionClozeSentencesAnswerUrl || choice.answerUrl!,
         correct: isCorrect,
         mode,
-        secondsSpent: Math.round((Date.now() - shownAt.current) / 1000),
+        secondsSpent,
         sentence,
       });
       setNumPointsToday(saved.languagePairing?.numPointsToday);
@@ -151,14 +187,19 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onToggleMode, sentences,
       {!answered && mode === "multiple_choice" && <MultipleChoiceAnswer onAnswer={answer} options={options} />}
       {!answered && mode === "text_input" && <TextAnswer onAnswer={answer} />}
       {!answered && mode === "flashcard" && (
-        <FlashcardAnswer key={index} onGrade={gradeFlashcard} onReveal={() => setIsRevealed(true)} />
+        <FlashcardAnswer isRevealed={isRevealed} onGrade={gradeFlashcard} onReveal={() => setIsRevealed(true)} />
       )}
       {saveError && <Text color={colors.danger}>Couldn't save an answer: {saveError.message}</Text>}
       <Hints
         hints={
           answered
             ? ["enter to continue", "esc menu"]
-            : [ANSWER_HINTS[mode], `tab: ${MODE_LABELS[nextMode(mode)].toLowerCase()}`, "esc menu"]
+            : [
+                ANSWER_HINTS[mode],
+                ...(mode === "flashcard" && results.length > 0 ? ["b back"] : []),
+                `tab: ${MODE_LABELS[nextMode(mode)].toLowerCase()}`,
+                "esc menu",
+              ]
         }
       />
     </Box>
