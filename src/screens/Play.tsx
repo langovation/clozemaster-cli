@@ -12,7 +12,8 @@ import { Spinner } from "../components/Spinner.js";
 import { TextAnswer } from "../components/TextAnswer.js";
 import { colors } from "../theme.js";
 import { useRequest } from "../useRequest.js";
-import { MODE_LABELS, type RoundChoice } from "./PickRound.js";
+import { MODE_LABELS } from "./PickMode.js";
+import type { RoundChoice } from "./PickRound.js";
 import { RoundSummary } from "./RoundSummary.js";
 
 type PlayProps = { choice: RoundChoice; mode: PlayMode; onMenu: () => void; onToggleMode: () => void };
@@ -140,9 +141,9 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onToggleMode, sentences,
           answered
             ? ["enter to continue", "esc for menu"]
             : [
-                mode === "multiple_choice" ? "1-4 to answer" : "enter to answer (empty to skip)",
-                `tab for ${MODE_LABELS[mode === "multiple_choice" ? "text_input" : "multiple_choice"].toLowerCase()}`,
-                "esc for menu",
+                mode === "multiple_choice" ? "1-4 to answer" : "enter to answer",
+                `tab: ${MODE_LABELS[mode === "multiple_choice" ? "text_input" : "multiple_choice"].toLowerCase()}`,
+                "esc menu",
               ]
         }
       />

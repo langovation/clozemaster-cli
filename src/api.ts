@@ -3,11 +3,9 @@ import { baseUrl, getAuthToken } from "./config.js";
 export type LanguagePairing = {
   id: number;
   baseLanguageName: string;
-  collectionsUrl: string;
   currentStreakDays: number;
   level: number;
   numPointsToday: number;
-  playDataUrl: string;
   score: number;
   targetLanguageName: string;
 };
@@ -113,6 +111,11 @@ export async function pollCliLogin(deviceCode: string): Promise<{ authToken: str
   return login.authToken ? { authToken: login.authToken, username: login.username } : null;
 }
 
+// The pairings list has no URLs in it, unlike collections, so build the paths from the id.
+export function languagePairingPlayPath(languagePairing: LanguagePairing): string {
+  return `/lp/${languagePairing.id}/play`;
+}
+
 export async function getLanguagePairings(): Promise<LanguagePairing[]> {
   const { languagePairings } = await request<{ languagePairings: LanguagePairing[] }>("/lp", {
     query: { only_mine: "true" },
@@ -121,7 +124,7 @@ export async function getLanguagePairings(): Promise<LanguagePairing[]> {
 }
 
 export async function getCollections(languagePairing: LanguagePairing): Promise<Collection[]> {
-  const { collections } = await request<{ collections: Collection[] }>(languagePairing.collectionsUrl);
+  const { collections } = await request<{ collections: Collection[] }>(`/lp/${languagePairing.id}/c`);
   return collections;
 }
 

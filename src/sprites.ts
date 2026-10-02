@@ -1,6 +1,8 @@
 import type { Sprite } from "./pixels.js";
 
-const GLYPHS: Record<string, string[]> = {
+type Glyphs = Record<string, string[]>;
+
+const LARGE_GLYPHS: Glyphs = {
   A: [".###.", "#...#", "#...#", "#####", "#...#", "#...#", "#...#"],
   C: [".###.", "#...#", "#....", "#....", "#....", "#...#", ".###."],
   E: ["#####", "#....", "#....", "####.", "#....", "#....", "#####"],
@@ -13,19 +15,19 @@ const GLYPHS: Record<string, string[]> = {
   Z: ["#####", "....#", "...#.", "..#..", ".#...", "#....", "#####"],
 };
 
-// Each glyph row gets its own shade (light to dark) and a drop shadow, arcade style.
+// Each glyph row gets a shade from light to dark, plus a drop shadow, arcade style.
 const ROW_SHADES = ["1", "2", "3", "4", "5", "6", "7"];
 
-function pixelText(text: string): string[] {
-  const height = 7;
-  const width = text.length * 6;
-  const grid = Array.from({ length: height + 1 }, () => Array(width + 1).fill("."));
+function pixelText(text: string, glyphs: Glyphs): string[] {
+  const height = glyphs.A.length;
+  const advance = glyphs.A[0].length + 1;
+  const grid = Array.from({ length: height + 1 }, () => Array(text.length * advance + 1).fill("."));
   [...text].forEach((letter, index) => {
-    GLYPHS[letter].forEach((glyphRow, y) => {
+    glyphs[letter].forEach((glyphRow, y) => {
       [...glyphRow].forEach((pixel, x) => {
         if (pixel !== "#") return;
-        const column = index * 6 + x;
-        grid[y][column] = ROW_SHADES[y];
+        const column = index * advance + x;
+        grid[y][column] = ROW_SHADES[Math.round((y * (ROW_SHADES.length - 1)) / (height - 1))];
         if (grid[y + 1][column + 1] === ".") grid[y + 1][column + 1] = "s";
       });
     });
@@ -33,42 +35,23 @@ function pixelText(text: string): string[] {
   return grid.map((row) => row.join(""));
 }
 
-export const LOGO: Sprite = {
-  palette: {
-    "1": "#C8F2C8",
-    "2": "#A3E8A3",
-    "3": "#86D886",
-    "4": "#6CC66C",
-    "5": "#5CB85C",
-    "6": "#47A047",
-    "7": "#368836",
-    s: "#1E4A1E",
-  },
-  rows: pixelText("CLOZEMASTER"),
+const LOGO_PALETTE = {
+  "1": "#C8F2C8",
+  "2": "#A3E8A3",
+  "3": "#86D886",
+  "4": "#6CC66C",
+  "5": "#5CB85C",
+  "6": "#47A047",
+  "7": "#368836",
+  s: "#1E4A1E",
 };
 
-const BUDDY_PALETTE = { G: "#5CB85C", K: "#1D1D1D", W: "#F2F2F2", w: "#BDBDBD" };
+export const LOGO: Sprite = { palette: LOGO_PALETTE, rows: pixelText("CLOZEMASTER", LARGE_GLYPHS) };
 
-// A speech bubble with a cloze blank for a mouth.
-export const BUDDY: Sprite = {
-  palette: BUDDY_PALETTE,
-  rows: [
-    "..WWWWWWWWWW..",
-    ".WWWWWWWWWWWW.",
-    "WWWKKWWWWKKWWW",
-    "WWWKKWWWWKKWWW",
-    "WWWWWWWWWWWWWW",
-    "WWWGGGGGGGGWWw",
-    ".WWWWWWWWWWWw.",
-    "..WWWWWWWWww..",
-    "...WWW........",
-    "...WW.........",
-  ],
-};
-
-export const BUDDY_BLINKING: Sprite = {
-  palette: BUDDY_PALETTE,
-  rows: BUDDY.rows.map((row, y) => (y === 2 ? row.replace(/K/g, "W") : row)),
+// For narrow terminals: CLOZE stacked over MASTER.
+export const STACKED_LOGO: Sprite = {
+  palette: LOGO_PALETTE,
+  rows: [...pixelText("CLOZE", LARGE_GLYPHS), ...pixelText("MASTER", LARGE_GLYPHS)],
 };
 
 export const CHECK: Sprite = {

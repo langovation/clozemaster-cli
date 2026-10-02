@@ -22,7 +22,7 @@ export function PickLanguagePairing({ onPick, username }: { onPick: (pairing: La
           <Text bold>What are you learning today?</Text>
           <Select
             items={pairings.map((pairing) => ({
-              description: `level ${pairing.level} · ${pairing.score.toLocaleString()} points`,
+              description: `level ${pairing.level}`,
               label: `${pairing.targetLanguageName} from ${pairing.baseLanguageName}`,
               value: pairing,
             }))}
