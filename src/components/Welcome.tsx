@@ -3,7 +3,6 @@ import { Box, Text, useStdout } from "ink";
 import { LOGO, STACKED_LOGO } from "../sprites.js";
 import { colors } from "../theme.js";
 import { PixelArt } from "./PixelArt.js";
-import { Robot } from "./Robot.js";
 
 export function logoForWidth(columns: number) {
   return [LOGO, STACKED_LOGO].find((sprite) => Math.max(...sprite.rows.map((row) => row.length)) <= columns);
@@ -19,7 +18,6 @@ function Logo() {
 export function Welcome({ subtitle }: { subtitle: string }) {
   return (
     <Box flexDirection="column">
-      <Robot />
       <Logo />
       <Text dimColor>{subtitle}</Text>
     </Box>

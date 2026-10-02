@@ -85,32 +85,3 @@ export const FLAME: Sprite = {
     ".RYYYR.",
   ],
 };
-
-const ROBOT_PALETTE = { A: "#D9A441", a: "#FF6600", d: "#7C7C7C", e: "#5CB85C", g: "#D6D6D6", k: "#1D1D1D" };
-
-const ROBOT_ROWS = [
-  "......AA......",
-  "......dd......",
-  "..gggggggggg..",
-  ".gkkkkkkkkkkg.",
-  ".gkeekkkkeekg.",
-  ".gkeekkkkeekg.",
-  ".gkkkkkkkkkkg.",
-  "..gggggggggg..",
-  ".....dddd.....",
-  "dggggggggggggd",
-  "d.gggggggggg.d",
-  "..gg......gg..",
-  "..dd......dd..",
-];
-
-const BLANK_ROW = ".".repeat(ROBOT_ROWS[0].length);
-
-// The robot bobs a pixel up and down, its antenna flickers and it blinks now and then.
-export const ROBOT_FRAMES: Sprite[] = [
-  { palette: ROBOT_PALETTE, rows: [BLANK_ROW, ...ROBOT_ROWS] },
-  { palette: { ...ROBOT_PALETTE, A: ROBOT_PALETTE.a }, rows: [...ROBOT_ROWS, BLANK_ROW] },
-  { palette: ROBOT_PALETTE, rows: [BLANK_ROW, ...ROBOT_ROWS] },
-  { palette: { ...ROBOT_PALETTE, A: ROBOT_PALETTE.a }, rows: [...ROBOT_ROWS, BLANK_ROW] },
-  { palette: { ...ROBOT_PALETTE, e: ROBOT_PALETTE.k }, rows: [BLANK_ROW, ...ROBOT_ROWS] },
-];
