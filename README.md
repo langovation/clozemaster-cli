@@ -2,18 +2,22 @@
 
 Play [Clozemaster](https://www.clozemaster.com) in your terminal: multiple choice or text input, with pixel art.
 
-## Install
+## Run it
 
 Needs Node 20 or newer.
 
 ```sh
-npx clozemaster
+git clone https://github.com/langovation/clozemaster-cli.git
+cd clozemaster-cli
+npm install
+npm run dev
 ```
 
-Or install it globally and run `clozemaster`:
+To get a `clozemaster` command on your PATH:
 
 ```sh
-npm install -g clozemaster
+npm run build
+npm link
 ```
 
 The first run opens your browser to log in. Your login is saved in `~/.config/clozemaster/logins.json`.
@@ -26,7 +30,7 @@ The first run opens your browser to log in. Your login is saved in `~/.config/cl
 | `clozemaster login` | Log in again with your browser |
 | `clozemaster logout` | Forget your login on this machine |
 
-While playing: `1`-`4` picks an answer, `tab` switches between multiple choice and text input, `esc` goes back to the menu.
+While playing: `1`-`4` picks an answer, `→` gives a hint in text input, `tab` switches answer mode, `esc` goes back to the menu. Press `f` on the menus to email feedback to support@clozemaster.com.
 
 ## Development
 
