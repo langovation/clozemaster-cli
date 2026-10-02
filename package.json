@@ -1,0 +1,38 @@
+{
+  "name": "clozemaster",
+  "version": "0.1.0",
+  "description": "Play Clozemaster in your terminal",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "clozemaster": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsx src/cli.tsx",
+    "prepublishOnly": "npm run build",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "ink": "^6.0.0",
+    "ink-text-input": "^6.0.0",
+    "open": "^10.1.0",
+    "react": "^19.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.1.0",
+    "ink-testing-library": "^4.0.0",
+    "tsup": "^8.5.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.2.0"
+  }
+}
