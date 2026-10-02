@@ -8,7 +8,7 @@ import { configDirectory } from "../src/config.js";
 import { Play } from "../src/screens/Play.js";
 import { saveSettings, DEFAULT_SETTINGS, type Settings } from "../src/settings.js";
 import { SettingsProvider } from "../src/SettingsContext.js";
-import { ENTER, press, settle, showsInColor, stripAnsi } from "./helpers.js";
+import { ENTER, press, RIGHT_ARROW, settle, showsInColor, stripAnsi } from "./helpers.js";
 
 const sentence: api.Sentence = {
   alternativeAnswers: [],
@@ -152,7 +152,7 @@ describe("Play", () => {
   it("fills in the next letter for a hint and halves the points", async () => {
     const { lastFrame, stdin } = renderPlay("text_input");
     await settle();
-    await press(stdin, "mx", "?");
+    await press(stdin, "mx", RIGHT_ARROW);
     expect(stripAnsi(lastFrame()!)).toContain("❯ mu");
     await press(stdin, "cha", ENTER);
     expect(api.saveAnswer).toHaveBeenCalledWith(expect.objectContaining({ correct: true, usedHint: true }));

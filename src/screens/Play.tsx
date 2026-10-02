@@ -21,7 +21,7 @@ import { RoundSummary, type RoundResult } from "./RoundSummary.js";
 const ANSWER_HINTS: Record<PlayMode, string> = {
   flashcard: "space to reveal",
   multiple_choice: "1-4 to answer",
-  text_input: "? hint · ↑ accent",
+  text_input: "→ hint · ↑ accent",
 };
 
 type PlayProps = { choice: RoundChoice; mode: PlayMode; onMenu: () => void; onToggleMode: () => void };

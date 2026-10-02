@@ -9,8 +9,6 @@ import { colors } from "../theme.js";
 
 type TextAnswerProps = { onAnswer: (answer: string, usedHint: boolean) => void; sentence: Sentence };
 
-export const HINT_KEY = "?";
-
 export function TextAnswer({ onAnswer, sentence }: TextAnswerProps) {
   const { settings } = useSettings();
   const [answer, setAnswer] = useState("");
@@ -18,8 +16,8 @@ export function TextAnswer({ onAnswer, sentence }: TextAnswerProps) {
   const [spellingHint, setSpellingHint] = useState<{ answer: string; lettersOff: number }>();
   const check = { strictAccents: settings.strictAccents };
 
-  useInput((input, key) => {
-    if (input === HINT_KEY) {
+  useInput((_input, key) => {
+    if (key.rightArrow) {
       setUsedHint(true);
       setAnswer((current) => withNextLetter(current, sentence, check));
     }
@@ -46,7 +44,7 @@ export function TextAnswer({ onAnswer, sentence }: TextAnswerProps) {
         <Text color={typingColor}>
           <TextInput
             value={answer}
-            onChange={(typed) => !typed.includes(HINT_KEY) && setAnswer(typed)}
+            onChange={setAnswer}
             onSubmit={submit}
             placeholder="type the missing word"
           />
