@@ -42,3 +42,4 @@ Environment variables:
 
 - `CLOZEMASTER_URL`: server to play against, e.g. `http://localhost:3000` (default `https://www.clozemaster.com`)
 - `CLOZEMASTER_TOKEN`: use this API auth token instead of logging in
+- `CLOZEMASTER_COOKIE`: use a browser session cookie (`_clozemaster_session=...`) instead of logging in

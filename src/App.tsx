@@ -19,7 +19,7 @@ export function App({ forceLogin = false }: { forceLogin?: boolean }) {
 }
 
 function Screens({ forceLogin }: { forceLogin: boolean }) {
-  const [isLoggedIn, setIsLoggedIn] = useState(!forceLogin && Boolean(getAuthToken()));
+  const [isLoggedIn, setIsLoggedIn] = useState(!forceLogin && Boolean(getAuthToken() || process.env.CLOZEMASTER_COOKIE));
   const [username, setUsername] = useState(getStoredUsername());
   const [pairing, setPairing] = useState<LanguagePairing>();
   const [choice, setChoice] = useState<RoundChoice>();

@@ -75,6 +75,7 @@ function headers(): Record<string, string> {
     "Time-Zone": Intl.DateTimeFormat().resolvedOptions().timeZone,
     "Time-Zone-Offset-Hours": String(-new Date().getTimezoneOffset() / 60),
     ...(authToken ? { "Auth-Token": authToken } : {}),
+    ...(process.env.CLOZEMASTER_COOKIE ? { Cookie: process.env.CLOZEMASTER_COOKIE } : {}),
   };
 }
 
