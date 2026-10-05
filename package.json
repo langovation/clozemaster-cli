@@ -15,6 +15,7 @@
   },
   "scripts": {
     "build": "tsup",
+    "build:binary": "npx -y bun scripts/build-binary.ts",
     "dev": "tsx src/cli.tsx",
     "prepublishOnly": "npm run build",
     "test": "vitest run",

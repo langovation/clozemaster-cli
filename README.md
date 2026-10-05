@@ -4,26 +4,38 @@ Play [Clozemaster](https://www.clozemaster.com) in your terminal: multiple choic
 
 ## Run it
 
-Needs Node 20 or newer.
+There are two ways to run it. Both need the repo:
 
 ```sh
 git clone https://github.com/langovation/clozemaster-cli.git
 cd clozemaster-cli
 npm install
+```
+
+### 1. From source
+
+Needs Node 20 or newer. Good for working on the CLI.
+
+```sh
 npm run dev
 ```
 
-To get a `clozemaster` command on your PATH:
+### 2. As a `clozemaster` command
+
+Builds one standalone executable that doesn't need Node, then puts it on your PATH so you can just type `clozemaster`, like `claude`.
 
 ```sh
-npm run build
-npm link
+npm run build:binary
+cp bin/clozemaster ~/.local/bin/
+clozemaster
 ```
 
 **Temporary:** browser login isn't live yet. For now, log in on clozemaster.com, copy your `_clozemaster_session` cookie from the browser's dev tools, and run:
 
 ```sh
 CLOZEMASTER_COOKIE="_clozemaster_session=<your cookie>" npm run dev
+# or
+CLOZEMASTER_COOKIE="_clozemaster_session=<your cookie>" clozemaster
 ```
 
 Keep that cookie private; it's your login.
