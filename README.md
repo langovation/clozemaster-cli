@@ -2,33 +2,30 @@
 
 Play [Clozemaster](https://www.clozemaster.com) in your terminal: multiple choice or text input, with pixel art.
 
-## Run it
+## Install
 
-There are two ways to run it. Both need the repo:
+Like `claude`, one line installs a `clozemaster` command on macOS or Linux:
+
+```sh
+curl -fsSL https://www.clozemaster.com/install-cli.sh | sh
+```
+
+Then type `clozemaster` to play.
+
+## Run from source
+
+Needs Node 20 or newer.
 
 ```sh
 git clone https://github.com/langovation/clozemaster-cli.git
 cd clozemaster-cli
 npm install
-```
-
-### 1. From source
-
-Needs Node 20 or newer. Good for working on the CLI.
-
-```sh
 npm run dev
 ```
 
-### 2. As a `clozemaster` command
+## Release a new version
 
-Builds one standalone executable that doesn't need Node, then puts it on your PATH so you can just type `clozemaster`, like `claude`.
-
-```sh
-npm run build:binary
-cp bin/clozemaster ~/.local/bin/
-clozemaster
-```
+`npm run build:binary -- --all` builds an executable for each platform into `bin/`. Attach all four to a new GitHub release; `install.sh` always downloads from the latest release. The copy of `install.sh` served at clozemaster.com lives in the web repo at `public/install-cli.sh`.
 
 **Temporary:** browser login isn't live yet. For now, log in on clozemaster.com, copy your `_clozemaster_session` cookie from the browser's dev tools, and run:
 
