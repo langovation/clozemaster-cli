@@ -38,7 +38,8 @@ export function collectionRoundChoice(collection: Collection): RoundChoice {
 }
 
 function collectionChoice(collection: Collection): SelectItem<RoundChoice> {
-  return { detail: `${collection.numReadyForReview} due`, label: collection.name, value: collectionRoundChoice(collection) };
+  const numNew = Math.max(0, collection.numSentences - collection.numPlaying);
+  return { detail: `${numNew} new · ${collection.numReadyForReview} due`, label: collection.name, value: collectionRoundChoice(collection) };
 }
 
 export function PickRound({ onBack, onBrowse, onOpenSettings, onPick, pairing }: PickRoundProps) {

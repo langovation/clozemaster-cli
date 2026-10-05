@@ -45,7 +45,7 @@ describe("App against recorded API responses", () => {
     expect([...positions].sort((a, b) => a - b)).toEqual(positions);
     expect(frame).not.toContain("Beginner A1");
     expect(frame).not.toContain("Most Common Words");
-    expect(frame).toMatch(/My Words\s+3 due/);
+    expect(frame).toMatch(/My Words\s+6 new · 3 due/);
   });
 
   it("asks how to answer after picking a collection, flashcards included", async () => {
