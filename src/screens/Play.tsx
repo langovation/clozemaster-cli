@@ -24,9 +24,15 @@ const ANSWER_HINTS: Record<PlayMode, string> = {
   text_input: "→ hint · ↑ accent",
 };
 
-type PlayProps = { choice: RoundChoice; mode: PlayMode; onMenu: () => void; onToggleMode: () => void };
+type PlayProps = {
+  choice: RoundChoice;
+  mode: PlayMode;
+  onMenu: () => void;
+  onProgress: (progress: AnswerResult["languagePairing"]) => void;
+  onToggleMode: () => void;
+};
 
-export function Play({ choice, mode, onMenu, onToggleMode }: PlayProps) {
+export function Play({ choice, mode, onMenu, onProgress, onToggleMode }: PlayProps) {
   const [roundNumber, setRoundNumber] = useState(0);
   const { data: round, error, isLoading } = useRequest(
     () => getRound({ mode, playDataUrl: choice.playDataUrl, scope: choice.scope }),
@@ -55,6 +61,7 @@ export function Play({ choice, mode, onMenu, onToggleMode }: PlayProps) {
       mode={mode}
       onMenu={onMenu}
       onPlayAgain={() => setRoundNumber((number) => number + 1)}
+      onProgress={onProgress}
       onToggleMode={onToggleMode}
       sentences={round.collectionClozeSentences}
       wordBank={round.wordBank}
@@ -71,7 +78,7 @@ type PlayRoundProps = Omit<PlayProps, "choice"> & {
   wordBank: string[];
 };
 
-function PlayRound({ choice, mode, onMenu, onPlayAgain, onToggleMode, sentences, wordBank }: PlayRoundProps) {
+function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode, sentences, wordBank }: PlayRoundProps) {
   const [deck, setDeck] = useState(sentences);
   const [index, setIndex] = useState(0);
   const [answered, setAnswered] = useState<AnsweredSentence>();
@@ -168,6 +175,7 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onToggleMode, sentences,
         usedHint,
       });
       setProgress(saved.languagePairing);
+      onProgress(saved.languagePairing);
     } catch (error) {
       setSaveError(error as Error);
     }

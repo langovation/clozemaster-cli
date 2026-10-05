@@ -81,6 +81,22 @@ describe("App against recorded API responses", () => {
     expect(server.answers()[0].body).toMatchObject({ correct: true, id: collectionRound[0].id, mode: "multiple_choice" });
   });
 
+  it("shows today's points on the menu after a round", async () => {
+    const { lastFrame, stdin } = await openPairing();
+    await press(stdin, DOWN, DOWN, ENTER, ENTER);
+    await waitForText(lastFrame, collectionRound[0].translation);
+
+    for (const sentence of collectionRound) {
+      const cloze = splitCloze(sentence.text).cloze;
+      const optionNumber = stripAnsi(lastFrame()!).match(new RegExp(`(\\d) ${cloze}(\\s|$)`))![1];
+      await press(stdin, optionNumber, ENTER);
+    }
+    await press(stdin, ESCAPE);
+    await waitForText(lastFrame, "What do you want to play?");
+
+    expect(stripAnsi(lastFrame()!)).toContain("52 points today");
+  });
+
   it("plays text input, replaying a miss at the end of the round", async () => {
     const { lastFrame, stdin } = await openPairing();
     await press(stdin, DOWN, DOWN, ENTER, DOWN, ENTER);

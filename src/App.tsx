@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Box, useStdout } from "ink";
-import type { LanguagePairing, PlayMode } from "./api.js";
+import type { AnswerResult, LanguagePairing, PlayMode } from "./api.js";
 import { getAuthToken, getStoredUsername } from "./config.js";
 import { BrowseCollections } from "./screens/BrowseCollections.js";
 import { Login } from "./screens/Login.js";
@@ -34,6 +34,8 @@ function Screens({ forceLogin }: { forceLogin: boolean }) {
   const [isShowingSettings, setIsShowingSettings] = useState(false);
 
   const toggleMode = () => setMode((current) => current && nextMode(current));
+  const updatePairingProgress = (progress: AnswerResult["languagePairing"]) =>
+    setPairing((current) => current && { ...current, ...progress });
 
   if (!isLoggedIn) {
     return (
@@ -72,6 +74,7 @@ function Screens({ forceLogin }: { forceLogin: boolean }) {
         setChoice(undefined);
         setMode(undefined);
       }}
+      onProgress={updatePairingProgress}
       onToggleMode={toggleMode}
     />
   );

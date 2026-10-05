@@ -29,7 +29,7 @@ function renderPlay(mode: api.PlayMode, settings: Partial<Settings> = {}) {
   saveSettings({ ...DEFAULT_SETTINGS, ...settings });
   return render(
     <SettingsProvider>
-      <Play choice={choice} mode={mode} onMenu={vi.fn()} onToggleMode={vi.fn()} />
+      <Play choice={choice} mode={mode} onMenu={vi.fn()} onProgress={vi.fn()} onToggleMode={vi.fn()} />
     </SettingsProvider>,
   );
 }
