@@ -7,7 +7,7 @@ const fixture = (name: string) => JSON.parse(fs.readFileSync(path.join(__dirname
 export type RecordedRequest = { body?: Record<string, unknown>; method: string; url: URL };
 
 // Answers every request from fixtures recorded off the real API; nothing leaves the machine.
-export function startFakeServer() {
+export function startFakeServer({ latestCliVersion = "0.0.0" }: { latestCliVersion?: string } = {}) {
   const requests: RecordedRequest[] = [];
   const respond = (status: number, body: unknown) => new Response(JSON.stringify(body), { status });
 
@@ -20,6 +20,7 @@ export function startFakeServer() {
       const answer = fixture("answer");
       return respond(200, { ...answer, languagePairing: { ...answer.languagePairing, numPointsToday: 52 } });
     }
+    if (url.pathname === "/cli-version.txt") return new Response(`${latestCliVersion}\n`, { status: 200 });
     if (url.pathname === "/api/v1/lp") return respond(200, fixture("language_pairings"));
     if (/^\/api\/v1\/lp\/\d+\/c$/.test(url.pathname)) return respond(200, fixture("collections"));
     if (/^\/api\/v1\/lp\/\d+\/play$/.test(url.pathname)) return respond(200, fixture(`round_${url.searchParams.get("scope")}`));

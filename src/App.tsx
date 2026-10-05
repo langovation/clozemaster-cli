@@ -5,6 +5,7 @@ import { getAuthToken, getStoredUsername } from "./config.js";
 import { BrowseCollections } from "./screens/BrowseCollections.js";
 import { Login } from "./screens/Login.js";
 import { SettingsScreen } from "./screens/SettingsScreen.js";
+import { UpdateNotice } from "./components/UpdateNotice.js";
 import { SettingsProvider } from "./SettingsContext.js";
 import { PickLanguagePairing } from "./screens/PickLanguagePairing.js";
 import { nextMode, PickMode } from "./screens/PickMode.js";
@@ -17,6 +18,7 @@ export function App({ forceLogin = false }: { forceLogin?: boolean }) {
   const { stdout } = useStdout();
   return (
     <Box flexDirection="column" paddingY={1} width={Math.min(stdout.columns || MAX_WIDTH, MAX_WIDTH)}>
+      <UpdateNotice />
       <SettingsProvider>
         <Screens forceLogin={forceLogin} />
       </SettingsProvider>

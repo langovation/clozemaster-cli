@@ -25,7 +25,12 @@ npm run dev
 
 ## Release a new version
 
-`npm run build:binary -- --all` builds an executable for each platform into `bin/`. Attach all four to a new GitHub release; `install.sh` always downloads from the latest release. The copy of `install.sh` served at clozemaster.com lives in the web repo at `public/install-cli.sh`.
+1. Bump `version` in `package.json`.
+2. `npm run build:binary -- --all` builds an executable for each platform into `bin/`.
+3. Attach all four to a new GitHub release. `install.sh` always downloads from the latest release.
+4. In the web repo, set `public/cli-version.txt` to the new version. Every CLI reads that file on launch and, if it's older, tells the user to rerun the install line.
+
+The copy of `install.sh` served at clozemaster.com lives in the web repo at `public/install-cli.sh`.
 
 **Temporary:** browser login isn't live yet. For now, log in on clozemaster.com, copy your `_clozemaster_session` cookie from the browser's dev tools, and run:
 
