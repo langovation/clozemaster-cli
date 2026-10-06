@@ -9,7 +9,7 @@ import { configDirectory } from "../src/config.js";
 import { Play } from "../src/screens/Play.js";
 import { saveSettings, DEFAULT_SETTINGS, type Settings } from "../src/settings.js";
 import { SettingsProvider } from "../src/SettingsContext.js";
-import { ENTER, press, RIGHT_ARROW, settle, showsInColor, stripAnsi } from "./helpers.js";
+import { ENTER, ESCAPE, press, RIGHT_ARROW, settle, showsInColor, stripAnsi } from "./helpers.js";
 
 const sentence: api.Sentence = {
   alternativeAnswers: [],
@@ -226,5 +226,23 @@ describe("Play", () => {
 
     expect(playSentenceAudio).not.toHaveBeenCalled();
     expect(stripAnsi(lastFrame()!)).not.toContain("p replay");
+  });
+
+  it("opens settings mid-round and comes back to the same sentence", async () => {
+    const { lastFrame, stdin } = renderPlay("multiple_choice");
+    await settle();
+    await press(stdin, "s");
+    expect(stripAnsi(lastFrame()!)).toContain("Settings");
+
+    await press(stdin, ESCAPE);
+    expect(stripAnsi(lastFrame()!)).toContain("I'm very hungry.");
+  });
+
+  it("types s into a text answer instead of opening settings", async () => {
+    const { lastFrame, stdin } = renderPlay("text_input");
+    await settle();
+    await press(stdin, "s");
+
+    expect(stripAnsi(lastFrame()!)).not.toContain("Settings");
   });
 });

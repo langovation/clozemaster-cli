@@ -18,6 +18,7 @@ import { useRequest } from "../useRequest.js";
 import { MODE_LABELS, nextMode } from "./PickMode.js";
 import type { RoundChoice } from "./PickRound.js";
 import { RoundSummary, type RoundResult } from "./RoundSummary.js";
+import { SettingsScreen } from "./SettingsScreen.js";
 
 const ANSWER_HINTS: Record<PlayMode, string> = {
   flashcard: "space to reveal",
@@ -100,9 +101,11 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode
   }, [sentence]);
 
   const [isExplaining, setIsExplaining] = useState(false);
+  const [isShowingSettings, setIsShowingSettings] = useState(false);
   const isDone = Boolean(answered || (mode === "flashcard" && isRevealed));
   const isExplainable = Boolean(sentence && isDone && canExplain(sentence));
   const canPlayAudio = Boolean(sentence && isDone && settings.audio);
+  const canOpenSettings = mode !== "text_input" || Boolean(answered);
 
   useEffect(() => {
     if (canPlayAudio) playSentenceAudio(sentence);
@@ -124,7 +127,8 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode
     if (key.tab && !answered) onToggleMode();
     if (key.return && answered) goToNextSentence();
     if (mode === "flashcard" && (input === "b" || key.backspace || key.delete)) goBackToPreviousCard();
-  });
+    if (input === "s" && canOpenSettings) setIsShowingSettings(true);
+  }, { isActive: !isShowingSettings });
 
   // Flashcards are self-graded, so there's nothing to show: straight on to the next card.
   // The grade is held back until the next one so "back" can take it back without a server undo.
@@ -211,6 +215,8 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode
     );
   }
 
+  if (isShowingSettings) return <SettingsScreen onBack={() => setIsShowingSettings(false)} />;
+
   return (
     <Box flexDirection="column" gap={1}>
       <Box justifyContent="space-between">
@@ -228,12 +234,13 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode
       <Hints
         hints={
           answered
-            ? ["enter to continue", ...(canPlayAudio ? ["p replay"] : []), ...(isExplainable ? [isExplaining ? "e hide explanation" : "e explain"] : []), "esc menu"]
+            ? ["enter to continue", ...(canPlayAudio ? ["p replay"] : []), ...(isExplainable ? [isExplaining ? "e hide explanation" : "e explain"] : []), "s settings", "esc menu"]
             : [
                 ANSWER_HINTS[mode],
                 ...(isExplainable ? ["e explain"] : []),
                 ...(mode === "flashcard" && results.length > 0 ? ["b back"] : []),
                 `tab: ${MODE_LABELS[nextMode(mode)].toLowerCase()}`,
+                ...(canOpenSettings ? ["s settings"] : []),
                 "esc menu",
               ]
         }
