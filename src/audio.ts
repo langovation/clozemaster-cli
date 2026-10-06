@@ -1,0 +1,55 @@
+import { spawn, type ChildProcess } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { getSentenceAudioUrl, type Sentence } from "./api.js";
+
+const PLAYERS: { args: string[]; command: string }[] =
+  process.platform === "darwin"
+    ? [{ args: [], command: "afplay" }]
+    : [
+        { args: ["-q"], command: "mpg123" },
+        { args: ["-nodisp", "-autoexit", "-loglevel", "quiet"], command: "ffplay" },
+        { args: ["--no-video", "--really-quiet"], command: "mpv" },
+      ];
+
+const cacheDirectory = path.join(os.tmpdir(), "clozemaster-audio");
+let currentPlayback: ChildProcess | undefined;
+let latestRequest = 0;
+
+async function downloadAudio(sentence: Sentence): Promise<string | undefined> {
+  const audioPath = path.join(cacheDirectory, `${sentence.id}.mp3`);
+  if (fs.existsSync(audioPath)) return audioPath;
+  const audioUrl = await getSentenceAudioUrl(sentence);
+  if (!audioUrl) return undefined;
+  const response = await fetch(audioUrl);
+  if (!response.ok) return undefined;
+  fs.mkdirSync(cacheDirectory, { recursive: true });
+  fs.writeFileSync(audioPath, Buffer.from(await response.arrayBuffer()));
+  return audioPath;
+}
+
+function playFile(audioPath: string, players = PLAYERS) {
+  const [player, ...fallbacks] = players;
+  if (!player) return;
+  const playback = spawn(player.command, [...player.args, audioPath], { stdio: "ignore" });
+  playback.on("error", () => {
+    if (currentPlayback === playback) playFile(audioPath, fallbacks);
+  });
+  currentPlayback = playback;
+}
+
+export function stopAudio() {
+  latestRequest++;
+  currentPlayback?.kill();
+  currentPlayback = undefined;
+}
+
+export async function playSentenceAudio(sentence: Sentence) {
+  stopAudio();
+  const request = latestRequest;
+  try {
+    const audioPath = await downloadAudio(sentence);
+    if (audioPath && request === latestRequest) playFile(audioPath);
+  } catch {}
+}

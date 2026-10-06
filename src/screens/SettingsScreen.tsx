@@ -25,6 +25,7 @@ const ROWS: SettingRow[] = [
   { description: "when to show the translation", key: "translation", label: "Translation", values: ["visible", "after", "hidden"] },
   { description: "show the sentence's hint before answering", key: "hints", label: "Hints", values: [true, false] },
   { description: "show pronunciation after answering", key: "pronunciation", label: "Pronunciation", values: [true, false] },
+  { description: "play the sentence out loud after answering, p to replay", key: "audio", label: "Audio", values: [true, false] },
 ];
 
 function valueLabel(value: Settings[keyof Settings]): string {

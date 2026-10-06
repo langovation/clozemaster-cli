@@ -59,6 +59,8 @@ export type Sentence = {
   pronunciation?: string | null;
   text: string;
   translation: string;
+  ttsAudioUrl?: string | null;
+  ttsUrl?: string;
 };
 
 export type Round = {
@@ -272,4 +274,12 @@ export async function getExplanation(sentence: Sentence): Promise<Explanation> {
 function localDate(): string {
   const now = new Date();
   return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+}
+
+// Same as the mobile app: use the recorded audio, otherwise ask the server to generate it.
+export async function getSentenceAudioUrl(sentence: Sentence): Promise<string | undefined> {
+  if (sentence.ttsAudioUrl) return sentence.ttsAudioUrl;
+  if (!sentence.ttsUrl) return undefined;
+  const { ttsAudioUrl } = await request<{ ttsAudioUrl: string | null }>(sentence.ttsUrl);
+  return ttsAudioUrl || undefined;
 }

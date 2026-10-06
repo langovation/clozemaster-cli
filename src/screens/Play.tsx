@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Box, Text, useInput } from "ink";
 import { getRound, saveAnswer, type AnswerResult, type PlayMode, type Sentence } from "../api.js";
+import { playSentenceAudio, stopAudio } from "../audio.js";
 import { isCorrectAnswer, multipleChoiceOptions, pointsFor } from "../answers.js";
 import { canExplain, ExplanationPanel } from "../components/ExplanationPanel.js";
 import { FlashcardAnswer } from "../components/FlashcardAnswer.js";
@@ -101,6 +102,13 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode
   const [isExplaining, setIsExplaining] = useState(false);
   const isDone = Boolean(answered || (mode === "flashcard" && isRevealed));
   const isExplainable = Boolean(sentence && isDone && canExplain(sentence));
+  const canPlayAudio = Boolean(sentence && isDone && settings.audio);
+
+  useEffect(() => {
+    if (canPlayAudio) playSentenceAudio(sentence);
+  }, [canPlayAudio, sentence]);
+
+  useEffect(() => stopAudio, []);
 
   useInput((input, key) => {
     if (key.escape && isExplaining) {
@@ -112,6 +120,7 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode
       onMenu();
     }
     if (input === "e" && isExplainable) setIsExplaining((current) => !current);
+    if (input === "p" && canPlayAudio) playSentenceAudio(sentence);
     if (key.tab && !answered) onToggleMode();
     if (key.return && answered) goToNextSentence();
     if (mode === "flashcard" && (input === "b" || key.backspace || key.delete)) goBackToPreviousCard();
@@ -182,6 +191,7 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode
   }
 
   function goToNextSentence() {
+    stopAudio();
     setAnswered(undefined);
     setIsRevealed(false);
     setIsExplaining(false);
@@ -218,7 +228,7 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode
       <Hints
         hints={
           answered
-            ? ["enter to continue", ...(isExplainable ? [isExplaining ? "e hide explanation" : "e explain"] : []), "esc menu"]
+            ? ["enter to continue", ...(canPlayAudio ? ["p replay"] : []), ...(isExplainable ? [isExplaining ? "e hide explanation" : "e explain"] : []), "esc menu"]
             : [
                 ANSWER_HINTS[mode],
                 ...(isExplainable ? ["e explain"] : []),

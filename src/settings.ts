@@ -5,6 +5,7 @@ import { configDirectory } from "./config.js";
 export type TranslationVisibility = "visible" | "after" | "hidden";
 
 export type Settings = {
+  audio: boolean;
   hints: boolean;
   pronunciation: boolean;
   spellingHints: boolean;
@@ -15,6 +16,7 @@ export type Settings = {
 
 // Same defaults as the mobile app for vocabulary rounds.
 export const DEFAULT_SETTINGS: Settings = {
+  audio: true,
   hints: true,
   pronunciation: true,
   spellingHints: true,

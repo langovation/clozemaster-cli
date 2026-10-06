@@ -4,6 +4,7 @@ import React from "react";
 import { render } from "ink-testing-library";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../src/api.js";
+import { playSentenceAudio } from "../src/audio.js";
 import { configDirectory } from "../src/config.js";
 import { Play } from "../src/screens/Play.js";
 import { saveSettings, DEFAULT_SETTINGS, type Settings } from "../src/settings.js";
@@ -34,9 +35,12 @@ function renderPlay(mode: api.PlayMode, settings: Partial<Settings> = {}) {
   );
 }
 
+vi.mock("../src/audio.js", () => ({ playSentenceAudio: vi.fn(), stopAudio: vi.fn() }));
+
 describe("Play", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.mocked(playSentenceAudio).mockClear();
     fs.rmSync(path.join(configDirectory, "settings.json"), { force: true });
     vi.spyOn(api, "getRound").mockResolvedValue({ collectionClozeSentences: [sentence], wordBank: [] });
     vi.spyOn(api, "saveAnswer").mockResolvedValue({ languagePairing: progress });
@@ -192,5 +196,35 @@ describe("Play", () => {
     await settle();
     await press(stdin, "mucha", ENTER);
     expect(stripAnsi(lastFrame()!)).not.toContain("explain");
+  });
+
+  it("plays the sentence after answering and replays it with p", async () => {
+    const { lastFrame, stdin } = renderPlay("text_input");
+    await settle();
+    expect(playSentenceAudio).not.toHaveBeenCalled();
+
+    await press(stdin, "mucha", ENTER);
+    expect(playSentenceAudio).toHaveBeenCalledWith(sentence);
+    expect(stripAnsi(lastFrame()!)).toContain("p replay");
+
+    await press(stdin, "p");
+    expect(playSentenceAudio).toHaveBeenCalledTimes(2);
+  });
+
+  it("plays a flashcard's sentence once it's revealed", async () => {
+    const { stdin } = renderPlay("flashcard");
+    await settle();
+    await press(stdin, " ");
+
+    expect(playSentenceAudio).toHaveBeenCalledWith(sentence);
+  });
+
+  it("stays silent with audio off", async () => {
+    const { lastFrame, stdin } = renderPlay("text_input", { audio: false });
+    await settle();
+    await press(stdin, "mucha", ENTER, "p");
+
+    expect(playSentenceAudio).not.toHaveBeenCalled();
+    expect(stripAnsi(lastFrame()!)).not.toContain("p replay");
   });
 });
