@@ -19,6 +19,7 @@ const BROWSE = "browse";
 type PickRoundProps = {
   onBack: () => void;
   onBrowse: () => void;
+  onOpenQuickCapture: () => void;
   onOpenSettings: () => void;
   onPick: (choice: RoundChoice) => void;
   pairing: LanguagePairing;
@@ -42,11 +43,12 @@ function collectionChoice(collection: Collection): SelectItem<RoundChoice> {
   return { detail: `${numNew} new · ${collection.numReadyForReview} due`, label: collection.name, value: collectionRoundChoice(collection) };
 }
 
-export function PickRound({ onBack, onBrowse, onOpenSettings, onPick, pairing }: PickRoundProps) {
+export function PickRound({ onBack, onBrowse, onOpenQuickCapture, onOpenSettings, onPick, pairing }: PickRoundProps) {
   const { data: collections, error, isLoading } = useRequest(() => getCollections(pairing), [pairing.id]);
 
   useInput((input, key) => {
     if (key.escape) onBack();
+    if (input === "c") onOpenQuickCapture();
     if (input === "s") onOpenSettings();
     if (input === "f") openFeedbackEmail();
   });
@@ -77,7 +79,7 @@ export function PickRound({ onBack, onBrowse, onOpenSettings, onPick, pairing }:
           onSelect={(picked) => (picked === BROWSE ? onBrowse() : onPick(picked))}
         />
       </Box>
-      <Hints hints={["enter to pick", "s settings", "f feedback", "esc to go back"]} />
+      <Hints hints={["enter to pick", "c quick capture", "s settings", "f feedback", "esc to go back"]} />
     </Box>
   );
 }

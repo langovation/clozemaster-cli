@@ -78,6 +78,14 @@ export type AnswerResult = {
   };
 };
 
+export type QuickCaptureEntry = {
+  id: string;
+  status: "queued" | "working" | "processed" | "failed";
+  text: string;
+  translation: string | null;
+  url: string;
+};
+
 export type CliLoginStart = {
   deviceCode: string;
   expiresIn: number;
@@ -94,7 +102,7 @@ export class ApiError extends Error {
 
 type RequestOptions = {
   body?: object;
-  method?: "GET" | "POST" | "PUT";
+  method?: "DELETE" | "GET" | "POST" | "PUT";
   query?: Record<string, string>;
 };
 
@@ -131,6 +139,7 @@ async function request<T>(pathOrUrl: string, { body, method = "GET", query }: Re
   if (!response.ok) {
     throw new ApiError(`Clozemaster responded ${response.status}`, response.status);
   }
+  if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
 
@@ -159,6 +168,25 @@ export async function getLanguagePairings(): Promise<LanguagePairing[]> {
 export async function getCollections(languagePairing: LanguagePairing): Promise<Collection[]> {
   const { collections } = await request<{ collections: Collection[] }>(`/lp/${languagePairing.id}/c`);
   return collections;
+}
+
+export async function getQuickCaptureEntries(languagePairing: LanguagePairing): Promise<QuickCaptureEntry[]> {
+  const { quickCaptureEntries } = await request<{ quickCaptureEntries: QuickCaptureEntry[] }>(
+    `/lp/${languagePairing.id}/quick_capture_entries`,
+  );
+  return quickCaptureEntries;
+}
+
+export async function addQuickCaptureEntry(languagePairing: LanguagePairing, text: string): Promise<QuickCaptureEntry> {
+  const { quickCaptureEntry } = await request<{ quickCaptureEntry: QuickCaptureEntry }>(
+    `/lp/${languagePairing.id}/quick_capture_entries`,
+    { body: { quick_capture_entry: { text } }, method: "POST" },
+  );
+  return quickCaptureEntry;
+}
+
+export async function deleteQuickCaptureEntry(entry: QuickCaptureEntry): Promise<void> {
+  await request<void>(entry.url, { method: "DELETE" });
 }
 
 export async function getRound({ mode, playDataUrl, scope }: { mode: PlayMode; playDataUrl: string; scope?: string }) {

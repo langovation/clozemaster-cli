@@ -10,6 +10,7 @@ export type RecordedRequest = { body?: Record<string, unknown>; method: string; 
 export function startFakeServer({ latestCliVersion = "0.0.0" }: { latestCliVersion?: string } = {}) {
   const requests: RecordedRequest[] = [];
   const respond = (status: number, body: unknown) => new Response(JSON.stringify(body), { status });
+  let quickCaptureEntries: { id: string; status: string; text: string; translation: string | null; url: string }[] = [];
 
   vi.stubGlobal("fetch", vi.fn(async (input: string, init: RequestInit = {}) => {
     const url = new URL(input);
@@ -25,8 +26,26 @@ export function startFakeServer({ latestCliVersion = "0.0.0" }: { latestCliVersi
     if (/^\/api\/v1\/lp\/\d+\/c$/.test(url.pathname)) return respond(200, fixture("collections"));
     if (/^\/api\/v1\/lp\/\d+\/play$/.test(url.pathname)) return respond(200, fixture(`round_${url.searchParams.get("scope")}`));
     if (/^\/api\/v1\/lp\/\d+\/c\/\d+\/play$/.test(url.pathname)) return respond(200, fixture("round_collection"));
+    if (/^\/api\/v1\/lp\/\d+\/quick_capture_entries$/.test(url.pathname)) {
+      if (method === "POST") {
+        const text = (requests.at(-1)!.body!.quick_capture_entry as { text: string }).text;
+        const id = String(quickCaptureEntries.length + 1);
+        const entry = { id, status: "processed", text, translation: `${text} (translated)`, url: `${url}/${id}` };
+        quickCaptureEntries = [entry, ...quickCaptureEntries];
+        return respond(201, { quickCaptureEntry: entry });
+      }
+      return respond(200, { quickCaptureEntries });
+    }
+    if (method === "DELETE" && /\/quick_capture_entries\/\d+$/.test(url.pathname)) {
+      quickCaptureEntries = quickCaptureEntries.filter((entry) => !url.pathname.endsWith(`/${entry.id}`));
+      return new Response(null, { status: 204 });
+    }
     return respond(404, {});
   }));
 
-  return { answers: () => requests.filter((request) => request.method === "PUT"), requests };
+  return {
+    answers: () => requests.filter((request) => request.method === "PUT"),
+    quickCaptureEntries: () => quickCaptureEntries,
+    requests,
+  };
 }

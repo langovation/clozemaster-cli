@@ -11,6 +11,7 @@ import { PickLanguagePairing } from "./screens/PickLanguagePairing.js";
 import { nextMode, PickMode } from "./screens/PickMode.js";
 import { PickRound, type RoundChoice } from "./screens/PickRound.js";
 import { Play } from "./screens/Play.js";
+import { QuickCapture } from "./screens/QuickCapture.js";
 
 const MAX_WIDTH = 80;
 
@@ -34,6 +35,7 @@ function Screens({ forceLogin }: { forceLogin: boolean }) {
   const [mode, setMode] = useState<PlayMode>();
   const [isBrowsing, setIsBrowsing] = useState(false);
   const [isShowingSettings, setIsShowingSettings] = useState(false);
+  const [isCapturing, setIsCapturing] = useState(false);
 
   const toggleMode = () => setMode((current) => current && nextMode(current));
   const updatePairingProgress = (progress: AnswerResult["languagePairing"]) =>
@@ -52,6 +54,7 @@ function Screens({ forceLogin }: { forceLogin: boolean }) {
   if (isShowingSettings) return <SettingsScreen onBack={() => setIsShowingSettings(false)} />;
   const openSettings = () => setIsShowingSettings(true);
   if (!pairing) return <PickLanguagePairing onOpenSettings={openSettings} onPick={setPairing} username={username} />;
+  if (!choice && isCapturing) return <QuickCapture onBack={() => setIsCapturing(false)} pairing={pairing} />;
   if (!choice && isBrowsing) {
     return <BrowseCollections onBack={() => setIsBrowsing(false)} onPick={setChoice} pairing={pairing} />;
   }
@@ -60,6 +63,7 @@ function Screens({ forceLogin }: { forceLogin: boolean }) {
       <PickRound
         onBack={() => setPairing(undefined)}
         onBrowse={() => setIsBrowsing(true)}
+        onOpenQuickCapture={() => setIsCapturing(true)}
         onOpenSettings={openSettings}
         onPick={setChoice}
         pairing={pairing}
