@@ -1,5 +1,5 @@
-import React from "react";
-import { Box, Text } from "ink";
+import React, { useEffect, useRef, useState } from "react";
+import { Box, measureElement, Text, useInput, useStdout, type DOMElement } from "ink";
 import { getExplanation, type ExplanationWord, type Sentence, type StructuredExplanation } from "../api.js";
 import { colors } from "../theme.js";
 import { useRequest } from "../useRequest.js";
@@ -75,6 +75,39 @@ export function canExplain(sentence: Sentence): boolean {
   return Boolean(sentence.structuredExplanation || sentence.explanation || sentence.explanationJobUrl);
 }
 
+// Room left for the explanation once the sentence, hints and borders are on screen.
+const ROWS_AROUND_EXPLANATION = 16;
+const MIN_VISIBLE_ROWS = 6;
+
+// Ink can't scroll, so a long explanation is clipped to the terminal and moved with the arrows.
+function Scrollable({ children }: { children: React.ReactNode }) {
+  const { stdout } = useStdout();
+  const visibleRows = Math.max(MIN_VISIBLE_ROWS, (stdout.rows || 24) - ROWS_AROUND_EXPLANATION);
+  const content = useRef<DOMElement>(null);
+  const [contentRows, setContentRows] = useState(0);
+  const [scrolledRows, setScrolledRows] = useState(0);
+  const maxScroll = Math.max(0, contentRows - visibleRows);
+
+  useEffect(() => {
+    if (content.current) setContentRows(measureElement(content.current).height);
+  });
+
+  useInput((_input, key) => {
+    if (key.downArrow) setScrolledRows((current) => Math.min(current + 1, maxScroll));
+    if (key.upArrow) setScrolledRows((current) => Math.max(current - 1, 0));
+  }, { isActive: maxScroll > 0 });
+
+  if (maxScroll === 0) return <Box flexDirection="column" ref={content}>{children}</Box>;
+  return (
+    <Box flexDirection="column">
+      <Box flexDirection="column" height={visibleRows} overflowY="hidden">
+        <Box flexDirection="column" flexShrink={0} marginTop={-scrolledRows} ref={content}>{children}</Box>
+      </Box>
+      <Text dimColor>↑↓ scroll · {Math.round((scrolledRows / maxScroll) * 100)}%</Text>
+    </Box>
+  );
+}
+
 export function ExplanationPanel({ sentence }: { sentence: Sentence }) {
   const { data: explanation, error, isLoading } = useRequest(() => getExplanation(sentence), [sentence.id]);
   return (
@@ -82,8 +115,10 @@ export function ExplanationPanel({ sentence }: { sentence: Sentence }) {
       <Text bold>Explanation</Text>
       {isLoading && <Spinner label="Explaining… this may take a few seconds" />}
       {error && <ErrorMessage error={error} />}
-      {explanation?.structured && <Structured explanation={explanation.structured} />}
-      {explanation && !explanation.structured && <Text>{explanation.text}</Text>}
+      <Scrollable>
+        {explanation?.structured && <Structured explanation={explanation.structured} />}
+        {explanation && !explanation.structured && <Text>{explanation.text}</Text>}
+      </Scrollable>
     </Box>
   );
 }

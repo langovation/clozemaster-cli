@@ -9,7 +9,7 @@ import { configDirectory } from "../src/config.js";
 import { Play } from "../src/screens/Play.js";
 import { saveSettings, DEFAULT_SETTINGS, type Settings } from "../src/settings.js";
 import { SettingsProvider } from "../src/SettingsContext.js";
-import { ENTER, ESCAPE, press, RIGHT_ARROW, settle, showsInColor, stripAnsi } from "./helpers.js";
+import { DOWN, ENTER, ESCAPE, press, RIGHT_ARROW, settle, showsInColor, stripAnsi } from "./helpers.js";
 
 const sentence: api.Sentence = {
   alternativeAnswers: [],
@@ -197,7 +197,35 @@ describe("Play", () => {
     expect(frame).toContain("mucha a lot of");
     expect(frame).toContain("mucho · determiner, feminine, singular");
     expect(frame).toContain("Literally");
-    expect(frame).toContain("Common mistake");
+
+    await press(stdin, ...Array<string>(10).fill(DOWN));
+    expect(stripAnsi(lastFrame()!)).toContain("Common mistake");
+  });
+
+  it("scrolls an explanation too long for the terminal", async () => {
+    const word = (index: number) => ({ features: [], gloss: `gloss ${index}`, lemma: `word${index}`, note: null, pos: "noun", reading: null, surface: `word${index}` });
+    const explained = {
+      ...sentence,
+      structuredExplanation: {
+        alternative: null,
+        breakdown: Array.from({ length: 20 }, (_, index) => word(index)),
+        literalTranslation: null,
+        sections: [],
+        sentenceReading: null,
+        translation: "I'm very hungry.",
+      },
+    };
+    vi.mocked(api.getRound).mockResolvedValue({ collectionClozeSentences: [explained], wordBank: [] });
+    const { lastFrame, stdin } = renderPlay("multiple_choice");
+    await settle();
+    await press(stdin, stripAnsi(lastFrame()!).match(/(\d) mucha/)![1], "e");
+    await settle();
+    expect(stripAnsi(lastFrame()!)).toContain("↑↓ scroll · 0%");
+    expect(stripAnsi(lastFrame()!)).not.toContain("word19");
+
+    await press(stdin, ...Array<string>(40).fill(DOWN));
+    expect(stripAnsi(lastFrame()!)).toContain("word19");
+    expect(stripAnsi(lastFrame()!)).toContain("↑↓ scroll · 100%");
   });
 
   it("doesn't offer explain when there's nothing to explain", async () => {
