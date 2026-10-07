@@ -67,6 +67,7 @@ export type Sentence = {
 };
 
 export type Round = {
+  collection?: { isEditable?: boolean };
   collectionClozeSentences: Sentence[];
   wordBank: string[];
 };
@@ -310,6 +311,11 @@ export async function saveAnswer({
 }
 
 // The apps' "Known": fully mastered and never reviewed again.
+// The server only changes the text in the user's own collections; elsewhere just their translation is kept.
+export async function updateSentence({ sentence, upsertUrl }: { sentence: Sentence; upsertUrl: string }): Promise<void> {
+  await request(upsertUrl, { body: { updates: [{ id: sentence.id, text: sentence.text, translation: sentence.translation }] }, method: "POST" });
+}
+
 export async function markSentenceKnown({ sentence, upsertUrl }: { sentence: Sentence; upsertUrl: string }): Promise<void> {
   await request(upsertUrl, { body: { updates: [{ id: sentence.id, level: 4, next_review: "2100-01-01" }] }, method: "POST" });
 }

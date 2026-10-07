@@ -17,6 +17,7 @@ import { colors } from "../theme.js";
 import { useRequest } from "../useRequest.js";
 import { MODE_LABELS, nextMode } from "./PickMode.js";
 import type { RoundChoice } from "./PickRound.js";
+import { EditSentence } from "./EditSentence.js";
 import { RoundSummary, type RoundResult } from "./RoundSummary.js";
 import { SettingsScreen } from "./SettingsScreen.js";
 
@@ -62,6 +63,7 @@ export function Play({ choice, mode, onMenu, onProgress, onToggleMode }: PlayPro
     <PlayRound
       key={roundNumber}
       choice={choice}
+      isTextEditable={Boolean(round.collection?.isEditable)}
       mode={mode}
       onMenu={onMenu}
       onPlayAgain={() => setRoundNumber((number) => number + 1)}
@@ -83,6 +85,7 @@ type PendingAnswer = RoundResult & { index: number; mode: PlayMode; secondsSpent
 
 type PlayRoundProps = Omit<PlayProps, "choice"> & {
   choice: RoundChoice;
+  isTextEditable: boolean;
   onPlayAgain: () => void;
   sentences: Sentence[];
   wordBank: string[];
@@ -96,7 +99,7 @@ function ListeningCard() {
   );
 }
 
-function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode, sentences, wordBank }: PlayRoundProps) {
+function PlayRound({ choice, isTextEditable, mode, onMenu, onPlayAgain, onProgress, onToggleMode, sentences, wordBank }: PlayRoundProps) {
   const [deck, setDeck] = useState(sentences);
   const [index, setIndex] = useState(0);
   const [answered, setAnswered] = useState<AnsweredSentence>();
@@ -120,10 +123,12 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode
 
   const [isExplaining, setIsExplaining] = useState(false);
   const [isShowingSettings, setIsShowingSettings] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const isDone = Boolean(answered || (mode === "flashcard" && isRevealed));
   const isExplainable = Boolean(sentence && isDone && canExplain(sentence));
   const canPlayAudio = Boolean(sentence && isDone && (mode === "listening" || settings.audio));
   const canOpenSettings = !isTypedMode(mode) || Boolean(answered);
+  const upsertUrl = sentence?.collectionClozeSentencesUpsertUrl || choice.upsertUrl;
   const canGoBack = mode === "flashcard" && Boolean(pendingGrade.current);
 
   // So the audio plays straight away once the card flips.
@@ -165,7 +170,8 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode
     if (mode === "flashcard" && (input === "b" || key.backspace || key.delete)) goBackToPreviousCard();
     if (mode === "flashcard" && key.rightArrow && !isRevealed) setHasUsedHint(true);
     if (input === "s" && canOpenSettings) setIsShowingSettings(true);
-  }, { isActive: !isShowingSettings });
+    if (input === "c" && canOpenSettings && upsertUrl) setIsEditing(true);
+  }, { isActive: !isShowingSettings && !isEditing });
 
   // Like the mobile app: the chime for a right answer, then the sentence.
   async function playAfterAnswering({ isCorrect }: AnsweredSentence) {
@@ -195,7 +201,6 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode
     setResults((previous) => [...previous, { answer: "", isCorrect: true, points: 0, sentence, usedHint: false }]);
     goToNextSentence();
     try {
-      const upsertUrl = sentence.collectionClozeSentencesUpsertUrl || choice.upsertUrl;
       if (!upsertUrl) throw new Error("this round doesn't say which collection the sentence is in.");
       await markSentenceKnown({ sentence, upsertUrl });
     } catch (error) {
@@ -263,6 +268,12 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode
     }
   }
 
+  // A missed sentence is in the deck twice, so both copies take the edit.
+  function showEditedSentence(edited: Sentence) {
+    setDeck((current) => current.map((card) => (card.id === edited.id ? { ...card, text: edited.text, translation: edited.translation } : card)));
+    setIsEditing(false);
+  }
+
   function goToNextSentence() {
     stopAudio();
     setAnswered(undefined);
@@ -287,6 +298,9 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode
   }
 
   if (isShowingSettings) return <SettingsScreen onBack={() => setIsShowingSettings(false)} />;
+  if (isEditing && upsertUrl) {
+    return <EditSentence isTextEditable={isTextEditable} onBack={() => setIsEditing(false)} onSaved={showEditedSentence} sentence={sentence} upsertUrl={upsertUrl} />;
+  }
 
   return (
     <Box flexDirection="column" gap={1}>
@@ -307,7 +321,7 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode
           isListening && !answered
             ? ["p replay", "esc back"]
             : answered
-            ? ["enter to continue", ...(canPlayAudio ? ["p replay"] : []), ...(isExplainable ? [isExplaining ? "e hide explanation" : "e explain"] : []), "s settings", "esc back"]
+            ? ["enter to continue", ...(canPlayAudio ? ["p replay"] : []), ...(isExplainable ? [isExplaining ? "e hide explanation" : "e explain"] : []), "s settings", ...(upsertUrl ? ["c edit card"] : []), "esc back"]
             : [
                 ...((isTypedMode(mode) || (mode === "flashcard" && !isRevealed)) && !hasUsedHint ? ["→ hint"] : []),
                 ...(isRevealed ? [] : [ANSWER_HINTS[mode]]),
@@ -316,6 +330,7 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode
                 ...(canGoBack ? ["b previous card"] : []),
                 ...(isRevealed ? [] : [`tab: ${MODE_LABELS[nextMode(mode)].toLowerCase()}`]),
                 ...(canOpenSettings ? ["s settings"] : []),
+                ...(canOpenSettings && upsertUrl ? ["c edit card"] : []),
                 "esc back",
               ]
         }

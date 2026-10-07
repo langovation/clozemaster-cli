@@ -436,4 +436,50 @@ describe("Play", () => {
 
     expect(stripAnsi(lastFrame()!)).not.toContain("Settings");
   });
+
+  describe("editing the card", () => {
+    beforeEach(() => {
+      vi.spyOn(api, "isProSubscriber").mockResolvedValue(true);
+      vi.spyOn(api, "updateSentence").mockResolvedValue();
+    });
+
+    it("saves a fixed translation and shows it on the card", async () => {
+      const { lastFrame, stdin } = renderPlay("multiple_choice");
+      await settle();
+      await press(stdin, "c", "t", " Really.", ENTER, ENTER);
+
+      expect(api.updateSentence).toHaveBeenCalledWith({
+        sentence: expect.objectContaining({ id: 7, text: sentence.text, translation: "I'm very hungry. Really." }),
+        upsertUrl: "https://example.com/upsert",
+      });
+      expect(stripAnsi(lastFrame()!)).toContain("I'm very hungry. Really.");
+    });
+
+    it("moves the hidden word in the user's own collection", async () => {
+      vi.mocked(api.getRound).mockResolvedValue({ collection: { isEditable: true }, collectionClozeSentences: [sentence], wordBank: [] });
+      const { stdin } = renderPlay("multiple_choice");
+      await settle();
+      await press(stdin, "c", RIGHT_ARROW, ENTER);
+
+      expect(api.updateSentence).toHaveBeenCalledWith(expect.objectContaining({ sentence: expect.objectContaining({ text: "Tengo mucha {{hambre}}." }) }));
+    });
+
+    it("only offers the translation in a collection the user doesn't own", async () => {
+      const { lastFrame, stdin } = renderPlay("multiple_choice");
+      await settle();
+      await press(stdin, "c");
+
+      expect(stripAnsi(lastFrame()!)).toContain("Only the translation can be changed");
+      expect(stripAnsi(lastFrame()!)).not.toContain("e edit sentence");
+    });
+
+    it("asks free users to upgrade", async () => {
+      vi.mocked(api.isProSubscriber).mockResolvedValue(false);
+      const { lastFrame, stdin } = renderPlay("multiple_choice");
+      await settle();
+      await press(stdin, "c");
+
+      expect(stripAnsi(lastFrame()!)).toContain("Editing sentences needs Clozemaster Pro.");
+    });
+  });
 });
