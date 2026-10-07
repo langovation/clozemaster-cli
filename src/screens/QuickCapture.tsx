@@ -13,6 +13,7 @@ import { ErrorMessage } from "../components/ErrorMessage.js";
 import { Hints } from "../components/Hints.js";
 import { Spinner } from "../components/Spinner.js";
 import { colors } from "../theme.js";
+import { ClozeSentence, EditQuickCaptureEntry } from "./EditQuickCaptureEntry.js";
 import { ImportQuickCapture } from "./ImportQuickCapture.js";
 
 const POLL_INTERVAL_MS = 3000;
@@ -36,6 +37,7 @@ export function QuickCapture({ onBack, pairing }: QuickCaptureProps) {
   const [selectedIds, setSelectedIds] = useState(new Set<string>());
   const [entriesToImport, setEntriesToImport] = useState<QuickCaptureEntry[]>();
   const [importNotice, setImportNotice] = useState<string>();
+  const [editedEntry, setEditedEntry] = useState<QuickCaptureEntry>();
   const changeCount = useRef(0);
 
   // A load that started before an add or delete would bring back the old list, so it's dropped.
@@ -113,6 +115,12 @@ export function QuickCapture({ onBack, pairing }: QuickCaptureProps) {
     setEntriesToImport(undefined);
   }
 
+  function finishEditing(saved: QuickCaptureEntry) {
+    changeCount.current++;
+    setEntries((current = []) => current.map((entry) => (entry.id === saved.id ? saved : entry)));
+    setEditedEntry(undefined);
+  }
+
   useInput((input, key) => {
     if (key.escape) return onBack();
     if (key.tab) return setIsListFocused((isFocused) => !isFocused && Boolean(entries?.length));
@@ -122,7 +130,10 @@ export function QuickCapture({ onBack, pairing }: QuickCaptureProps) {
     if (input === "d") deleteHighlightedEntry(entries);
     if (input === " ") toggleSelected(entries[highlighted]);
     if (input === "i") startImport(entries);
-  }, { isActive: !entriesToImport });
+    if (key.return) setEditedEntry(entries[highlighted]);
+  }, { isActive: !entriesToImport && !editedEntry });
+
+  if (editedEntry) return <EditQuickCaptureEntry entry={editedEntry} onBack={() => setEditedEntry(undefined)} onSaved={finishEditing} />;
 
   if (entriesToImport) {
     return <ImportQuickCapture entries={entriesToImport} onBack={() => setEntriesToImport(undefined)} onImported={finishImport} pairing={pairing} />;
@@ -147,23 +158,31 @@ export function QuickCapture({ onBack, pairing }: QuickCaptureProps) {
           {entries.map((entry, index) => {
             const isHighlighted = isListFocused && index === highlighted;
             return (
-              <Box key={entry.id} justifyContent="space-between" gap={2}>
-                <Text color={isHighlighted ? colors.brand : undefined} wrap="truncate-end">
-                  {isHighlighted ? "❯ " : "  "}
-                  {selectedIds.has(entry.id) ? "◉ " : "○ "}
-                  {entry.text}
-                </Text>
-                <Box flexShrink={0}>
-                  <Text color={entry.status === "failed" ? colors.danger : undefined} dimColor={entry.status !== "failed"}>
-                    {entryDetail(entry)}
+              <Box key={entry.id} flexDirection="column">
+                <Box justifyContent="space-between" gap={2}>
+                  <Text color={isHighlighted ? colors.brand : undefined} wrap="truncate-end">
+                    {isHighlighted ? "❯ " : "  "}
+                    {selectedIds.has(entry.id) ? "◉ " : "○ "}
+                    {entry.text}
                   </Text>
+                  <Box flexShrink={0}>
+                    <Text color={entry.status === "failed" ? colors.danger : undefined} dimColor={entry.status !== "failed"}>
+                      {entryDetail(entry)}
+                    </Text>
+                  </Box>
                 </Box>
+                {entry.sentence && (
+                  <Box flexDirection="column" paddingLeft={4}>
+                    <ClozeSentence text={entry.sentence} />
+                    {isHighlighted && entry.sentenceTranslation && <Text dimColor>{entry.sentenceTranslation}</Text>}
+                  </Box>
+                )}
               </Box>
             );
           })}
         </Box>
       )}
-      <Hints hints={isListFocused ? ["↑↓ to move", "space select", "i import", "d delete", "tab to type", "esc back"] : ["enter to save", "tab to pick a word", "esc back"]} />
+      <Hints hints={isListFocused ? ["↑↓ to move", "enter edit sentence", "space select", "i import", "d delete", "tab to type", "esc back"] : ["enter to save", "tab to pick a word", "esc back"]} />
     </Box>
   );
 }

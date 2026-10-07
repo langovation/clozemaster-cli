@@ -10,7 +10,7 @@ export type RecordedRequest = { body?: Record<string, unknown>; method: string; 
 export function startFakeServer({ isPro = true, latestCliVersion = "0.0.0" }: { isPro?: boolean; latestCliVersion?: string } = {}) {
   const requests: RecordedRequest[] = [];
   const respond = (status: number, body: unknown) => new Response(JSON.stringify(body), { status });
-  let quickCaptureEntries: { id: string; status: string; text: string; translation: string | null; url: string }[] = [];
+  let quickCaptureEntries: { id: string; sentence?: string; sentenceTranslation?: string; status: string; text: string; translation: string | null; url: string }[] = [];
 
   vi.stubGlobal("fetch", vi.fn(async (input: string, init: RequestInit = {}) => {
     const url = new URL(input);
@@ -43,11 +43,16 @@ export function startFakeServer({ isPro = true, latestCliVersion = "0.0.0" }: { 
       if (method === "POST") {
         const text = (requests.at(-1)!.body!.quick_capture_entry as { text: string }).text;
         const id = String(quickCaptureEntries.length + 1);
-        const entry = { id, status: "processed", text, translation: `${text} (translated)`, url: `${url}/${id}` };
+        const entry = { id, sentence: `Veo un {{${text}}} aquí.`, sentenceTranslation: `I see a ${text} here.`, status: "processed", text, translation: `${text} (translated)`, url: `${url}/${id}` };
         quickCaptureEntries = [entry, ...quickCaptureEntries];
         return respond(201, { quickCaptureEntry: entry });
       }
       return respond(200, { quickCaptureEntries });
+    }
+    if (method === "PATCH" && /\/quick_capture_entries\/\d+$/.test(url.pathname)) {
+      const { sentence, sentence_translation: sentenceTranslation } = requests.at(-1)!.body!.quick_capture_entry as { sentence: string; sentence_translation: string };
+      quickCaptureEntries = quickCaptureEntries.map((entry) => (url.pathname.endsWith(`/${entry.id}`) ? { ...entry, sentence, sentenceTranslation } : entry));
+      return respond(200, { quickCaptureEntry: quickCaptureEntries.find((entry) => url.pathname.endsWith(`/${entry.id}`)) });
     }
     if (method === "DELETE" && /\/quick_capture_entries\/\d+$/.test(url.pathname)) {
       quickCaptureEntries = quickCaptureEntries.filter((entry) => !url.pathname.endsWith(`/${entry.id}`));

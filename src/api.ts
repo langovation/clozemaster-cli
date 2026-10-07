@@ -96,6 +96,8 @@ export type AnswerResult = {
 
 export type QuickCaptureEntry = {
   id: string;
+  sentence?: string | null;
+  sentenceTranslation?: string | null;
   status: "queued" | "working" | "processed" | "failed";
   text: string;
   translation: string | null;
@@ -118,7 +120,7 @@ export class ApiError extends Error {
 
 type RequestOptions = {
   body?: object;
-  method?: "DELETE" | "GET" | "POST" | "PUT";
+  method?: "DELETE" | "GET" | "PATCH" | "POST" | "PUT";
   query?: Record<string, string>;
 };
 
@@ -198,6 +200,17 @@ export async function addQuickCaptureEntry(languagePairing: LanguagePairing, tex
     `/lp/${languagePairing.id}/quick_capture_entries`,
     { body: { quick_capture_entry: { text } }, method: "POST" },
   );
+  return quickCaptureEntry;
+}
+
+export async function updateQuickCaptureEntry(
+  entry: QuickCaptureEntry,
+  { sentence, sentenceTranslation }: { sentence: string; sentenceTranslation: string },
+): Promise<QuickCaptureEntry> {
+  const { quickCaptureEntry } = await request<{ quickCaptureEntry: QuickCaptureEntry }>(entry.url, {
+    body: { quick_capture_entry: { sentence, sentence_translation: sentenceTranslation } },
+    method: "PATCH",
+  });
   return quickCaptureEntry;
 }
 

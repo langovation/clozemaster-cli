@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../src/App.js";
 import { configDirectory } from "../src/config.js";
 import { startFakeServer } from "./fakeServer.js";
-import { DOWN, ENTER, ESCAPE, press, waitForText } from "./helpers.js";
+import { DOWN, ENTER, ESCAPE, press, RIGHT_ARROW, waitForText } from "./helpers.js";
 
 const TAB = "\t";
 
@@ -62,6 +62,24 @@ describe("Quick Capture", () => {
     await press(stdin, TAB, "d");
     await waitForText(lastFrame, "Nothing captured yet.");
     expect(server.quickCaptureEntries()).toEqual([]);
+  });
+
+  it("shows each word's example sentence", async () => {
+    const { lastFrame, stdin } = await openQuickCapture();
+    await press(stdin, "gato", ENTER);
+    await waitForText(lastFrame, "Veo un gato aquí.");
+  });
+
+  it("moves the hidden word and edits the translation, then saves", async () => {
+    const { lastFrame, stdin } = await openQuickCapture();
+    await press(stdin, "gato", ENTER);
+    await waitForText(lastFrame, "Veo un gato aquí.");
+    await press(stdin, TAB, ENTER);
+    await waitForText(lastFrame, "move the hidden word");
+    await press(stdin, RIGHT_ARROW, "t", " Mine.", ENTER, ENTER);
+    await waitForText(lastFrame, "I see a gato here. Mine.");
+
+    expect(server.quickCaptureEntries()[0]).toMatchObject({ sentence: "Veo un gato {{aquí}}.", sentenceTranslation: "I see a gato here. Mine." });
   });
 
   it("imports the selected words into a picked collection", async () => {
