@@ -203,6 +203,40 @@ export async function deleteQuickCaptureEntry(entry: QuickCaptureEntry): Promise
   await request<void>(entry.url, { method: "DELETE" });
 }
 
+export type OwnCollection = { id: number; name: string };
+
+// The user's own collections, most recently updated first, like the mobile app's import picker.
+export async function getOwnCollections(languagePairing: LanguagePairing): Promise<OwnCollection[]> {
+  const { collections } = await request<{ collections: OwnCollection[] }>(`/lp/${languagePairing.id}/c`, {
+    query: { filter: "mine", order: "updatedAt" },
+  });
+  return collections;
+}
+
+export async function createCollection(languagePairing: LanguagePairing, name: string): Promise<OwnCollection> {
+  const { collection } = await request<{ collection: OwnCollection }>(`/lp/${languagePairing.id}/c`, {
+    body: { collection: { name } },
+    method: "POST",
+  });
+  return collection;
+}
+
+export async function isProSubscriber(): Promise<boolean> {
+  const { user } = await request<{ user: { isPro: boolean | null } }>("/users/pro_subscriber");
+  return Boolean(user.isPro);
+}
+
+// Starts a background import on the server; the entries leave the Quick Capture list once it starts.
+export async function importQuickCaptureEntries(
+  languagePairing: LanguagePairing,
+  { collection, entries }: { collection: OwnCollection; entries: QuickCaptureEntry[] },
+): Promise<void> {
+  await request(`/lp/${languagePairing.id}/quick_capture_imports`, {
+    body: { collection_id: collection.id, pin_to_dashboard: true, quick_capture_entry_ids: entries.map((entry) => entry.id) },
+    method: "POST",
+  });
+}
+
 export async function getRound({ mode, playDataUrl, scope }: { mode: PlayMode; playDataUrl: string; scope?: string }) {
   return request<Round>(playDataUrl, {
     query: { count: "10", mode: mode === "listening" ? "text_input" : mode, skill: apiModeAndSkill(mode).skill, ...(scope ? { scope } : {}) },

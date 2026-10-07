@@ -7,7 +7,7 @@ const fixture = (name: string) => JSON.parse(fs.readFileSync(path.join(__dirname
 export type RecordedRequest = { body?: Record<string, unknown>; method: string; url: URL };
 
 // Answers every request from fixtures recorded off the real API; nothing leaves the machine.
-export function startFakeServer({ latestCliVersion = "0.0.0" }: { latestCliVersion?: string } = {}) {
+export function startFakeServer({ isPro = true, latestCliVersion = "0.0.0" }: { isPro?: boolean; latestCliVersion?: string } = {}) {
   const requests: RecordedRequest[] = [];
   const respond = (status: number, body: unknown) => new Response(JSON.stringify(body), { status });
   let quickCaptureEntries: { id: string; status: string; text: string; translation: string | null; url: string }[] = [];
@@ -23,7 +23,20 @@ export function startFakeServer({ latestCliVersion = "0.0.0" }: { latestCliVersi
     }
     if (url.pathname === "/cli-version.txt") return new Response(`${latestCliVersion}\n`, { status: 200 });
     if (url.pathname === "/api/v1/lp") return respond(200, fixture("language_pairings"));
+    if (url.pathname === "/api/v1/users/pro_subscriber") return respond(200, { user: { isPro } });
+    if (/^\/api\/v1\/lp\/\d+\/c$/.test(url.pathname) && method === "POST") {
+      const { name } = requests.at(-1)!.body!.collection as { name: string };
+      return respond(200, { collection: { id: 99, name } });
+    }
+    if (/^\/api\/v1\/lp\/\d+\/c$/.test(url.pathname) && url.searchParams.get("filter") === "mine") {
+      return respond(200, { collections: [{ id: 5, name: "alex's Custom Collection" }, { id: 6, name: "Travel" }] });
+    }
     if (/^\/api\/v1\/lp\/\d+\/c$/.test(url.pathname)) return respond(200, fixture("collections"));
+    if (method === "POST" && /^\/api\/v1\/lp\/\d+\/quick_capture_imports$/.test(url.pathname)) {
+      const { quick_capture_entry_ids: ids } = requests.at(-1)!.body as { quick_capture_entry_ids: string[] };
+      quickCaptureEntries = quickCaptureEntries.filter((entry) => !ids.includes(entry.id));
+      return respond(201, { quickCaptureImport: { id: "1", status: "pending" } });
+    }
     if (/^\/api\/v1\/lp\/\d+\/play$/.test(url.pathname)) return respond(200, fixture(`round_${url.searchParams.get("scope")}`));
     if (/^\/api\/v1\/lp\/\d+\/c\/\d+\/play$/.test(url.pathname)) return respond(200, fixture("round_collection"));
     if (/^\/api\/v1\/lp\/\d+\/quick_capture_entries$/.test(url.pathname)) {
@@ -45,6 +58,7 @@ export function startFakeServer({ latestCliVersion = "0.0.0" }: { latestCliVersi
 
   return {
     answers: () => requests.filter((request) => request.method === "PUT"),
+    imports: () => requests.filter((request) => request.url.pathname.endsWith("/quick_capture_imports")).map((request) => request.body),
     quickCaptureEntries: () => quickCaptureEntries,
     requests,
   };

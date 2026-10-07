@@ -6,12 +6,14 @@ import {
   deleteQuickCaptureEntry,
   getQuickCaptureEntries,
   type LanguagePairing,
+  type OwnCollection,
   type QuickCaptureEntry,
 } from "../api.js";
 import { ErrorMessage } from "../components/ErrorMessage.js";
 import { Hints } from "../components/Hints.js";
 import { Spinner } from "../components/Spinner.js";
 import { colors } from "../theme.js";
+import { ImportQuickCapture } from "./ImportQuickCapture.js";
 
 const POLL_INTERVAL_MS = 3000;
 
@@ -31,6 +33,9 @@ export function QuickCapture({ onBack, pairing }: QuickCaptureProps) {
   const [text, setText] = useState("");
   const [isListFocused, setIsListFocused] = useState(false);
   const [highlighted, setHighlighted] = useState(0);
+  const [selectedIds, setSelectedIds] = useState(new Set<string>());
+  const [entriesToImport, setEntriesToImport] = useState<QuickCaptureEntry[]>();
+  const [importNotice, setImportNotice] = useState<string>();
 
   async function loadEntries() {
     try {
@@ -77,6 +82,31 @@ export function QuickCapture({ onBack, pairing }: QuickCaptureProps) {
     }
   }
 
+  function toggleSelected(entry: QuickCaptureEntry) {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (!next.delete(entry.id)) next.add(entry.id);
+      return next;
+    });
+  }
+
+  // Imports the ticked words, or the highlighted one when none are ticked.
+  function startImport(list: QuickCaptureEntry[]) {
+    const selected = list.filter((entry) => selectedIds.has(entry.id));
+    setEntriesToImport(selected.length ? selected : [list[highlighted]]);
+  }
+
+  function finishImport(collection: OwnCollection) {
+    const importedIds = new Set(entriesToImport!.map((entry) => entry.id));
+    const remaining = (entries || []).filter((entry) => !importedIds.has(entry.id));
+    setEntries(remaining);
+    setSelectedIds(new Set());
+    setHighlighted(0);
+    setIsListFocused(remaining.length > 0);
+    setImportNotice(`Importing ${importedIds.size} into ${collection.name}. They'll show up there in a minute.`);
+    setEntriesToImport(undefined);
+  }
+
   useInput((input, key) => {
     if (key.escape) return onBack();
     if (key.tab) return setIsListFocused((isFocused) => !isFocused && Boolean(entries?.length));
@@ -84,19 +114,26 @@ export function QuickCapture({ onBack, pairing }: QuickCaptureProps) {
     if (key.upArrow) setHighlighted((index) => (index - 1 + entries.length) % entries.length);
     if (key.downArrow) setHighlighted((index) => (index + 1) % entries.length);
     if (input === "d") deleteHighlightedEntry(entries);
-  });
+    if (input === " ") toggleSelected(entries[highlighted]);
+    if (input === "i") startImport(entries);
+  }, { isActive: !entriesToImport });
+
+  if (entriesToImport) {
+    return <ImportQuickCapture entries={entriesToImport} onBack={() => setEntriesToImport(undefined)} onImported={finishImport} pairing={pairing} />;
+  }
 
   return (
     <Box flexDirection="column" gap={1}>
       <Box flexDirection="column">
         <Text bold>Quick Capture · {pairing.targetLanguageName}</Text>
-        <Text dimColor>Save words you come across, then add them to a collection in the Clozemaster app.</Text>
+        <Text dimColor>Save words you come across, then import them into a collection to play.</Text>
       </Box>
       <Box>
         <Text color={colors.brand}>❯ </Text>
         <TextInput focus={!isListFocused} onChange={setText} onSubmit={addEntry} placeholder="type a word or phrase" value={text} />
       </Box>
       {error && <ErrorMessage error={error} />}
+      {importNotice && <Text color={colors.brand}>{importNotice}</Text>}
       {!entries && !error && <Spinner label="Loading your words…" />}
       {entries?.length === 0 && <Text dimColor>Nothing captured yet.</Text>}
       {entries && entries.length > 0 && (
@@ -107,6 +144,7 @@ export function QuickCapture({ onBack, pairing }: QuickCaptureProps) {
               <Box key={entry.id} justifyContent="space-between" gap={2}>
                 <Text color={isHighlighted ? colors.brand : undefined} wrap="truncate-end">
                   {isHighlighted ? "❯ " : "  "}
+                  {selectedIds.has(entry.id) ? "◉ " : "○ "}
                   {entry.text}
                 </Text>
                 <Box flexShrink={0}>
@@ -119,7 +157,7 @@ export function QuickCapture({ onBack, pairing }: QuickCaptureProps) {
           })}
         </Box>
       )}
-      <Hints hints={isListFocused ? ["↑↓ to move", "d delete", "tab to type", "esc back"] : ["enter to save", "tab to pick a word", "esc back"]} />
+      <Hints hints={isListFocused ? ["↑↓ to move", "space select", "i import", "d delete", "tab to type", "esc back"] : ["enter to save", "tab to pick a word", "esc back"]} />
     </Box>
   );
 }
