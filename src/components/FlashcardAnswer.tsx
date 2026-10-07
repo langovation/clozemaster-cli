@@ -13,9 +13,11 @@ export function FlashcardAnswer({ isRevealed, onGrade, onKnown, onReveal }: Flas
   });
   if (!isRevealed) return <Text>Press <Text color={colors.brand} bold>space</Text> to reveal</Text>;
   return (
-    <Box gap={3}>
-      <Text><Text color={colors.danger} bold>1</Text> Again</Text>
-      <Text><Text color={colors.brand} bold>2</Text> Good</Text>
+    <Box justifyContent="space-between">
+      <Box gap={3}>
+        <Text><Text color={colors.danger} bold>1</Text> Again</Text>
+        <Text><Text color={colors.brand} bold>2</Text> Good</Text>
+      </Box>
       <Text><Text color={colors.gold} bold>k</Text> Known</Text>
     </Box>
   );
