@@ -39,7 +39,8 @@ export function Play({ choice, mode, onMenu, onProgress, onToggleMode }: PlayPro
   const [roundNumber, setRoundNumber] = useState(0);
   const { data: round, error, isLoading } = useRequest(
     () => getRound({ mode, playDataUrl: choice.playDataUrl, scope: choice.scope }),
-    [roundNumber],
+    // Listening is its own skill with its own due sentences, so switching to or from it fetches a new round.
+    [roundNumber, mode === "listening"],
   );
 
   useInput((_input, key) => {
@@ -72,7 +73,13 @@ export function Play({ choice, mode, onMenu, onProgress, onToggleMode }: PlayPro
   );
 }
 
-type PendingAnswer = RoundResult & { index: number; secondsSpent: number };
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
+function tomorrow(): string {
+  return new Date(Date.now() + ONE_DAY_MS).toISOString();
+}
+
+type PendingAnswer = RoundResult & { index: number; mode: PlayMode; secondsSpent: number };
 
 type PlayRoundProps = Omit<PlayProps, "choice"> & {
   choice: RoundChoice;
@@ -117,6 +124,7 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode
   const isExplainable = Boolean(sentence && isDone && canExplain(sentence));
   const canPlayAudio = Boolean(sentence && isDone && (mode === "listening" || settings.audio));
   const canOpenSettings = !isTypedMode(mode) || Boolean(answered);
+  const canGoBack = mode === "flashcard" && Boolean(pendingGrade.current);
 
   // So the audio plays straight away once the card flips.
   useEffect(() => {
@@ -149,30 +157,35 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode
       onMenu();
     }
     if (input === "e" && isExplainable) setIsExplaining((current) => !current);
-    if (input === "p" && canPlayAudio) playSentenceAudio(sentence);
-    if (key.tab && !answered) onToggleMode();
+    if (input === "p" && isListening && !answered) listenToSentence();
+    else if (input === "p" && canPlayAudio) playSentenceAudio(sentence);
+    // Not once a flashcard is revealed, or the next mode would show the answer it asks for.
+    if (key.tab && !answered && !isRevealed) onToggleMode();
     if (key.return && answered) goToNextSentence();
     if (mode === "flashcard" && (input === "b" || key.backspace || key.delete)) goBackToPreviousCard();
     if (mode === "flashcard" && key.rightArrow && !isRevealed) setHasUsedHint(true);
     if (input === "s" && canOpenSettings) setIsShowingSettings(true);
   }, { isActive: !isShowingSettings });
 
-  // Flashcards are self-graded, so there's nothing to show: straight on to the next card.
-  // The grade is held back until the next one so "back" can take it back without a server undo.
   // Like the mobile app: the chime for a right answer, then the sentence.
   async function playAfterAnswering({ isCorrect }: AnsweredSentence) {
     const isChimeDone = isCorrect && settings.soundEffects ? await playSoundEffect("correct") : true;
     if (isChimeDone && mode !== "listening" && settings.audio) playSentenceAudio(sentence);
   }
 
+  // Only reveals when this sentence's audio finished, not when moving on or a replay cut it short.
   async function listenToSentence() {
-    await playSentenceAudio(sentence);
-    setIsListening(false);
+    if (await playSentenceAudio(sentence)) {
+      setIsListening(false);
+      shownAt.current = Date.now();
+    }
   }
 
+  // Flashcards are self-graded, so there's nothing to show: straight on to the next card.
+  // The grade is held back until the next one so "back" can take it back without a server undo.
   function gradeFlashcard(isCorrect: boolean) {
     savePendingGrade();
-    pendingGrade.current = { ...record({ answer: "", isCorrect, usedHint: hasUsedHint }), index, sentence };
+    pendingGrade.current = { ...record({ answer: "", isCorrect, usedHint: hasUsedHint }), index, mode, sentence };
     goToNextSentence();
     if (isCorrect && settings.soundEffects) playSoundEffect("correct");
   }
@@ -212,7 +225,7 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode
     const isCorrect = isCorrectAnswer(attempt, sentence, { strictAccents: settings.strictAccents });
     const result = record({ answer: attempt.trim(), isCorrect, usedHint: hasUsedHint });
     setAnswered(result);
-    submit({ ...result, sentence });
+    submit({ ...result, mode, sentence });
   }
 
   function record({ answer: attempt, isCorrect, usedHint = false }: { answer: string; isCorrect: boolean; usedHint?: boolean }) {
@@ -225,15 +238,17 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode
       secondsSpent: Math.round((Date.now() - shownAt.current) / 1000),
     };
     setResults((previous) => [...previous, result]);
-    // Same as the web: a miss resets the sentence and sends it to the back of the round.
-    if (!isCorrect) setDeck((current) => [...current, { ...sentence, level: 0 }]);
+    // Same as the web: a miss resets the sentence and sends it to the back of the round, now due tomorrow so its retry scores like the server's.
+    if (!isCorrect) setDeck((current) => [...current, { ...sentence, level: 0, nextReview: tomorrow() }]);
     return result;
   }
 
-  async function submit({ isCorrect, secondsSpent, sentence, usedHint }: Pick<PendingAnswer, "isCorrect" | "secondsSpent" | "sentence" | "usedHint">) {
+  async function submit({ isCorrect, mode, secondsSpent, sentence, usedHint }: Pick<PendingAnswer, "isCorrect" | "mode" | "secondsSpent" | "sentence" | "usedHint">) {
     try {
+      const answerUrl = sentence.collectionClozeSentencesAnswerUrl || choice.answerUrl;
+      if (!answerUrl) throw new Error("this round doesn't say which collection the sentence is in.");
       const saved = await saveAnswer({
-        answerUrl: sentence.collectionClozeSentencesAnswerUrl || choice.answerUrl!,
+        answerUrl,
         correct: isCorrect,
         mode,
         secondsSpent,
@@ -242,6 +257,7 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode
       });
       setProgress(saved.languagePairing);
       onProgress(saved.languagePairing);
+      setSaveError(undefined);
     } catch (error) {
       setSaveError(error as Error);
     }
@@ -281,21 +297,24 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode
       {isListening && !answered ? <ListeningCard /> : <SentenceCard answered={answered} hintedLetters={mode === "flashcard" && hasUsedHint ? splitCloze(sentence.text).cloze[0] : undefined} isRevealed={isRevealed} sentence={sentence} />}
       {isExplaining && <ExplanationPanel sentence={sentence} />}
       {!answered && mode === "multiple_choice" && <MultipleChoiceAnswer onAnswer={answer} options={options} />}
-      {!answered && isTypedMode(mode) && <TextAnswer key={index} hasUsedHint={hasUsedHint} onAnswer={answer} onHint={() => setHasUsedHint(true)} sentence={sentence} />}
+      {!answered && !isListening && isTypedMode(mode) && <TextAnswer key={index} hasUsedHint={hasUsedHint} onAnswer={answer} onHint={() => setHasUsedHint(true)} sentence={sentence} />}
       {!answered && mode === "flashcard" && (
         <FlashcardAnswer isRevealed={isRevealed} onGrade={gradeFlashcard} onKnown={markKnown} onReveal={() => setIsRevealed(true)} />
       )}
       {saveError && <Text color={colors.danger}>Couldn't save an answer: {saveError.message}</Text>}
       <Hints
         hints={
-          answered
+          isListening && !answered
+            ? ["p replay", "esc back"]
+            : answered
             ? ["enter to continue", ...(canPlayAudio ? ["p replay"] : []), ...(isExplainable ? [isExplaining ? "e hide explanation" : "e explain"] : []), "s settings", "esc back"]
             : [
                 ...((isTypedMode(mode) || (mode === "flashcard" && !isRevealed)) && !hasUsedHint ? ["→ hint"] : []),
-                ANSWER_HINTS[mode],
+                ...(isRevealed ? [] : [ANSWER_HINTS[mode]]),
+                ...(isRevealed && canPlayAudio ? ["p replay"] : []),
                 ...(isExplainable ? ["e explain"] : []),
-                ...(mode === "flashcard" && results.length > 0 ? ["b previous card"] : []),
-                `tab: ${MODE_LABELS[nextMode(mode)].toLowerCase()}`,
+                ...(canGoBack ? ["b previous card"] : []),
+                ...(isRevealed ? [] : [`tab: ${MODE_LABELS[nextMode(mode)].toLowerCase()}`]),
                 ...(canOpenSettings ? ["s settings"] : []),
                 "esc back",
               ]

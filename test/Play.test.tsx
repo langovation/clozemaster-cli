@@ -26,16 +26,16 @@ const choice = { playDataUrl: "https://example.com/play", title: "Core 1,000 Col
 
 const progress = { currentStreakDays: 12, dailyGoalPointsPerDay: 100, level: 7, numPointsToday: 40, score: 900 };
 
-function renderPlay(mode: api.PlayMode, settings: Partial<Settings> = {}) {
+function renderPlay(mode: api.PlayMode, settings: Partial<Settings> = {}, onToggleMode = vi.fn()) {
   saveSettings({ ...DEFAULT_SETTINGS, ...settings });
   return render(
     <SettingsProvider>
-      <Play choice={choice} mode={mode} onMenu={vi.fn()} onProgress={vi.fn()} onToggleMode={vi.fn()} />
+      <Play choice={choice} mode={mode} onMenu={vi.fn()} onProgress={vi.fn()} onToggleMode={onToggleMode} />
     </SettingsProvider>,
   );
 }
 
-vi.mock("../src/audio.js", () => ({ playSentenceAudio: vi.fn(), playSoundEffect: vi.fn(async () => true), preloadSentenceAudio: vi.fn(), stopAudio: vi.fn() }));
+vi.mock("../src/audio.js", () => ({ playSentenceAudio: vi.fn(async () => true), playSoundEffect: vi.fn(async () => true), preloadSentenceAudio: vi.fn(), stopAudio: vi.fn() }));
 
 describe("Play", () => {
   beforeEach(() => {
@@ -113,6 +113,32 @@ describe("Play", () => {
     expect(stripAnsi(lastFrame()!)).toContain("✗ Tengo mucha hambre.");
   });
 
+  it("scores a missed sentence's retry at half, like the server does once it's due tomorrow", async () => {
+    const { lastFrame, stdin } = renderPlay("text_input");
+    await settle();
+    await press(stdin, "poco", ENTER, ENTER, "mucha", ENTER, ENTER);
+    expect(stripAnsi(lastFrame()!)).toContain("+4 points");
+  });
+
+  it("ignores enter with nothing typed", async () => {
+    const { stdin } = renderPlay("text_input");
+    await settle();
+    await press(stdin, ENTER);
+    expect(api.saveAnswer).not.toHaveBeenCalled();
+  });
+
+  it("clears a save error once a later answer saves", async () => {
+    vi.mocked(api.getRound).mockResolvedValue({ collectionClozeSentences: [sentence, { ...sentence, id: 8 }], wordBank: [] });
+    vi.mocked(api.saveAnswer).mockRejectedValueOnce(new Error("offline"));
+    const { lastFrame, stdin } = renderPlay("text_input");
+    await settle();
+    await press(stdin, "mucha", ENTER);
+    expect(stripAnsi(lastFrame()!)).toContain("Couldn't save an answer: offline");
+
+    await press(stdin, ENTER, "mucha", ENTER);
+    expect(stripAnsi(lastFrame()!)).not.toContain("Couldn't save");
+  });
+
   it("colours typing red once it stops matching", async () => {
     const { lastFrame, stdin } = renderPlay("text_input");
     await settle();
@@ -184,6 +210,14 @@ describe("Play", () => {
     expect(api.markSentenceKnown).toHaveBeenCalledWith({ sentence, upsertUrl: "https://example.com/upsert" });
     expect(api.saveAnswer).not.toHaveBeenCalled();
     expect(stripAnsi(lastFrame()!)).toContain("Round complete!");
+  });
+
+  it("doesn't switch mode once a flashcard is revealed", async () => {
+    const onToggleMode = vi.fn();
+    const { stdin } = renderPlay("flashcard", {}, onToggleMode);
+    await settle();
+    await press(stdin, " ", "\t");
+    expect(onToggleMode).not.toHaveBeenCalled();
   });
 
   it("goes back to the previous flashcard and only saves the final grade", async () => {
@@ -327,7 +361,7 @@ describe("Play", () => {
   });
 
   it("hides a listening sentence until its audio has played", async () => {
-    let finishPlaying = () => {};
+    let finishPlaying = (_hasFinished: boolean) => {};
     vi.mocked(playSentenceAudio).mockReturnValueOnce(new Promise((resolve) => (finishPlaying = resolve)));
     const { lastFrame } = renderPlay("listening");
     await settle();
@@ -335,9 +369,18 @@ describe("Play", () => {
     expect(stripAnsi(lastFrame()!)).toContain("Listen…");
     expect(stripAnsi(lastFrame()!)).not.toContain("Tengo");
 
-    finishPlaying();
+    finishPlaying(true);
     await settle();
     expect(stripAnsi(lastFrame()!)).toContain("Tengo");
+  });
+
+  it("keeps a listening sentence hidden when its audio is cut short", async () => {
+    vi.mocked(playSentenceAudio).mockResolvedValueOnce(false);
+    const { lastFrame } = renderPlay("listening");
+    await settle();
+    expect(stripAnsi(lastFrame()!)).toContain("Listen…");
+    expect(stripAnsi(lastFrame()!)).toContain("p replay");
+    expect(stripAnsi(lastFrame()!)).not.toContain("type the missing word");
   });
 
   it("types the word for a listening sentence and scores it like text input", async () => {

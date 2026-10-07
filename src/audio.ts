@@ -14,7 +14,8 @@ const PLAYERS: { args: string[]; command: string }[] =
         { args: ["--no-video", "--really-quiet"], command: "mpv" },
       ];
 
-const cacheDirectory = path.join(os.tmpdir(), "clozemaster-audio");
+// Per user rather than the shared temp dir, so nobody else on the machine can plant files in it.
+const cacheDirectory = path.join(process.env.XDG_CACHE_HOME || path.join(os.homedir(), ".cache"), "clozemaster", "audio");
 let currentPlayback: ChildProcess | undefined;
 let latestRequest = 0;
 const downloads = new Map<number, Promise<string | undefined>>();
@@ -82,11 +83,13 @@ export async function playSoundEffect(soundEffect: SoundEffect): Promise<boolean
   return request === latestRequest;
 }
 
-export async function playSentenceAudio(sentence: Sentence) {
+// Resolves true once the sentence has played (or couldn't be), false if something else stopped it.
+export async function playSentenceAudio(sentence: Sentence): Promise<boolean> {
   stopAudio();
   const request = latestRequest;
   try {
     const audioPath = await downloadAudio(sentence);
     if (audioPath && request === latestRequest) await playFile(audioPath);
   } catch {}
+  return request === latestRequest;
 }

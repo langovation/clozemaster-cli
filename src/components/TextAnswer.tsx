@@ -27,6 +27,8 @@ export function TextAnswer({ hasUsedHint, onAnswer, onHint, sentence }: TextAnsw
 
   // Like the web: a near miss gets one "off by N" nudge; submitting the same text again grades it.
   function submit(submitted: string) {
+    // Like the web, which disables submit on an empty answer: a stray enter shouldn't count as a miss.
+    if (!submitted.trim()) return;
     const offBy = settings.spellingHints && !isCorrectAnswer(submitted, sentence, check) && lettersOff(submitted, sentence, check);
     if (offBy && spellingHint?.answer !== submitted) {
       setSpellingHint({ answer: submitted, lettersOff: offBy });
