@@ -2,6 +2,16 @@
 
 Play [Clozemaster](https://www.clozemaster.com) in your terminal: multiple choice or text input, with pixel art.
 
+## Before launch
+
+The install line below doesn't work yet. Still to do:
+
+1. Make this repo public. GitHub blocks release downloads from private repos (#2).
+2. Publish release `v0.1.0` with the files from `npm run build:binary -- --all`: `clozemaster-darwin-arm64`, `clozemaster-darwin-x64`, `clozemaster-linux-x64`, `clozemaster-linux-arm64` and `SHA256SUMS`.
+3. Run the install line on Linux x64, Linux ARM and an Intel Mac.
+
+Remove this section once all three are done.
+
 ## Install
 
 Like `claude`, one line installs a `clozemaster` command on macOS or Linux:
