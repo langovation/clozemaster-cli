@@ -114,7 +114,8 @@ describe("Quick Capture", () => {
     await press(stdin, "gato", ENTER);
     await waitForText(lastFrame, "gato (translated)");
     await press(stdin, TAB, "i");
-    await waitForText(lastFrame, "Clozemaster Pro feature");
+    await waitForText(lastFrame, "needs Clozemaster Pro");
+    expect(lastFrame()).toContain("/pro?placement=cli_quick_capture_import");
     await press(stdin, ESCAPE);
     await waitForText(lastFrame, "gato (translated)");
     expect(server.imports()).toEqual([]);

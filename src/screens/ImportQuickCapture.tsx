@@ -6,6 +6,7 @@ import {
   getOwnCollections,
   importQuickCaptureEntries,
   isProSubscriber,
+  ProRequiredError,
   type LanguagePairing,
   type OwnCollection,
   type QuickCaptureEntry,
@@ -70,7 +71,7 @@ export function ImportQuickCapture({ entries, onBack, onImported, pairing }: Imp
     return (
       <Box flexDirection="column" gap={1}>
         <Text bold>{title}</Text>
-        <Text>Importing Quick Capture words into a collection is a Clozemaster Pro feature.</Text>
+        <ErrorMessage error={new ProRequiredError("Importing Quick Capture words into a collection needs Clozemaster Pro.", "quick_capture_import")} />
         <Hints hints={["esc back"]} />
       </Box>
     );

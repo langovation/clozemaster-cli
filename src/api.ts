@@ -112,6 +112,15 @@ export type CliLoginStart = {
   verificationUrl: string;
 };
 
+export class ProRequiredError extends Error {
+  readonly upgradeUrl: string;
+
+  constructor(message: string, placement: string) {
+    super(message);
+    this.upgradeUrl = `${baseUrl}/pro?placement=cli_${placement}`;
+  }
+}
+
 export class ApiError extends Error {
   constructor(message: string, readonly status: number) {
     super(message);
@@ -260,7 +269,7 @@ export async function getRound({ mode, playDataUrl, scope }: { mode: PlayMode; p
     });
   } catch (error) {
     if (mode === "listening" && error instanceof ApiError && error.status === 400) {
-      throw new Error("Your free listening trial is used up. Listening is part of Clozemaster Pro.");
+      throw new ProRequiredError("Your free listening trial is used up. Listening needs Clozemaster Pro.", "listening");
     }
     throw error;
   }
