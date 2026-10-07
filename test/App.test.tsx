@@ -58,13 +58,12 @@ describe("App against recorded API responses", () => {
     expect(lastFrame()).toContain("Listening");
   });
 
-  it("shows the core stats from the mobile dashboard under the pairing name", async () => {
+  it("shows level, streak, today's points, total points and weekly leaderboard rank", async () => {
     const { lastFrame } = await openPairing();
+    await waitForText(lastFrame, "3rd on this week's leaderboard");
     const frame = stripAnsi(lastFrame()!);
-    expect(frame).toContain("Level 7 · 112 points to level 8");
-    expect(frame).toContain("1,320 points total");
-    expect(frame).toContain("3rd on this week's leaderboard");
-    expect(frame).toContain("0 playing · 0 favorites");
+    expect(frame).toContain("Level 7 · 0 day streak");
+    expect(frame).toContain("0 points today · 1,320 total");
   });
 
   it("says when there is nothing to review and goes back on esc", async () => {

@@ -23,6 +23,9 @@ export function startFakeServer({ isPro = true, latestCliVersion = "0.0.0" }: { 
     }
     if (url.pathname === "/cli-version.txt") return new Response(`${latestCliVersion}\n`, { status: 200 });
     if (url.pathname === "/api/v1/lp") return respond(200, fixture("language_pairings"));
+    if (/^\/api\/v1\/lp\/\d+$/.test(url.pathname)) {
+      return respond(200, { languagePairing: { ...fixture("language_pairings").languagePairings[0], currentWeekLeaderboardRank: 3 } });
+    }
     if (url.pathname === "/api/v1/users/pro_subscriber") return respond(200, { user: { isPro } });
     if (/^\/api\/v1\/lp\/\d+\/c$/.test(url.pathname) && method === "POST") {
       const { name } = requests.at(-1)!.body!.collection as { name: string };

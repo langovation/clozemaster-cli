@@ -6,7 +6,6 @@ export type LanguagePairing = {
   currentStreakDays: number;
   currentWeekLeaderboardRank?: number;
   level: number;
-  nextLevelPoints: number;
   numPointsToday: number;
   score: number;
   targetLanguageName: string;
@@ -18,7 +17,6 @@ export type Collection = {
   collectionClozeSentencesUpsertUrl: string;
   dashboardCollection: boolean;
   name: string;
-  numFavorited: number;
   numMastered: number;
   numPlaying: number;
   numReadyForReview: number;
@@ -193,6 +191,11 @@ export async function getLanguagePairings(): Promise<LanguagePairing[]> {
     query: { only_mine: "true" },
   });
   return languagePairings;
+}
+
+export async function getLanguagePairing(languagePairing: LanguagePairing): Promise<LanguagePairing> {
+  const response = await request<{ languagePairing: LanguagePairing }>(`/lp/${languagePairing.id}`);
+  return response.languagePairing;
 }
 
 export async function getCollections(languagePairing: LanguagePairing): Promise<Collection[]> {

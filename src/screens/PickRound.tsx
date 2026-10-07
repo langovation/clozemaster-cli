@@ -1,6 +1,6 @@
 import React from "react";
 import { Box, Text, useInput } from "ink";
-import { getCollections, languagePairingPlayPath, type Collection, type LanguagePairing } from "../api.js";
+import { getCollections, getLanguagePairing, languagePairingPlayPath, type Collection, type LanguagePairing } from "../api.js";
 import { myCollections } from "../collectionSort.js";
 import { ErrorMessage } from "../components/ErrorMessage.js";
 import { Hints } from "../components/Hints.js";
@@ -53,12 +53,10 @@ function ordinalize(rank: number): string {
   return `${rank}${suffixes[new Intl.PluralRules("en", { type: "ordinal" }).select(rank)]}`;
 }
 
-function sumOf(collections: Collection[], count: (collection: Collection) => number): string {
-  return collections.reduce((sum, collection) => sum + count(collection), 0).toLocaleString("en");
-}
-
 export function PickRound({ onBack, onBrowse, onOpenQuickCapture, onOpenSettings, onPick, pairing }: PickRoundProps) {
   const { data: collections, error, isLoading } = useRequest(() => getCollections(pairing), [pairing.id]);
+  const { data: pairingWithRank } = useRequest(() => getLanguagePairing(pairing), [pairing.id]);
+  const rank = pairingWithRank?.currentWeekLeaderboardRank;
 
   useInput((input, key) => {
     if (key.escape) onBack();
@@ -78,11 +76,13 @@ export function PickRound({ onBack, onBrowse, onOpenQuickCapture, onOpenSettings
         <PixelArt sprite={FLAME} />
         <Box flexDirection="column">
           <Text bold>{pairing.targetLanguageName} from {pairing.baseLanguageName}</Text>
-          <Text color={colors.streak}>{pairing.currentStreakDays} day streak</Text>
-          <Text color={colors.gold}>{pairing.numPointsToday} points today</Text>
-          <Text>Level {pairing.level} · {(pairing.nextLevelPoints - pairing.score).toLocaleString("en")} points to level {pairing.level + 1} · {pairing.score.toLocaleString("en")} points total</Text>
-          {Boolean(pairing.currentWeekLeaderboardRank) && <Text>{ordinalize(pairing.currentWeekLeaderboardRank!)} on this week's leaderboard</Text>}
-          <Text dimColor>{sumOf(collections, (collection) => collection.numPlaying)} playing · {sumOf(collections, (collection) => collection.numFavorited)} favorites</Text>
+          <Text>
+            Level {pairing.level} · <Text color={colors.streak}>{pairing.currentStreakDays} day streak</Text>
+          </Text>
+          <Text>
+            <Text color={colors.gold}>{pairing.numPointsToday.toLocaleString("en")} points today</Text> · {pairing.score.toLocaleString("en")} total
+          </Text>
+          {Boolean(rank) && <Text>{ordinalize(rank!)} on this week's leaderboard</Text>}
         </Box>
       </Box>
       <Box flexDirection="column">
