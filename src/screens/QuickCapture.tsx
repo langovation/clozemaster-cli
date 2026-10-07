@@ -171,10 +171,10 @@ export function QuickCapture({ onBack, pairing }: QuickCaptureProps) {
                     </Text>
                   </Box>
                 </Box>
-                {entry.sentence && (
+                {isHighlighted && entry.sentence && (
                   <Box flexDirection="column" paddingLeft={4}>
                     <ClozeSentence text={entry.sentence} />
-                    {isHighlighted && entry.sentenceTranslation && <Text dimColor>{entry.sentenceTranslation}</Text>}
+                    {entry.sentenceTranslation && <Text dimColor>{entry.sentenceTranslation}</Text>}
                   </Box>
                 )}
               </Box>

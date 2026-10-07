@@ -64,16 +64,19 @@ describe("Quick Capture", () => {
     expect(server.quickCaptureEntries()).toEqual([]);
   });
 
-  it("shows each word's example sentence", async () => {
+  it("shows the example sentence only for the highlighted word", async () => {
     const { lastFrame, stdin } = await openQuickCapture();
     await press(stdin, "gato", ENTER);
+    await waitForText(lastFrame, "gato (translated)");
+    expect(lastFrame()).not.toContain("Veo un gato aquí.");
+    await press(stdin, TAB);
     await waitForText(lastFrame, "Veo un gato aquí.");
   });
 
   it("moves the hidden word and edits the translation, then saves", async () => {
     const { lastFrame, stdin } = await openQuickCapture();
     await press(stdin, "gato", ENTER);
-    await waitForText(lastFrame, "Veo un gato aquí.");
+    await waitForText(lastFrame, "gato (translated)");
     await press(stdin, TAB, ENTER);
     await waitForText(lastFrame, "move the hidden word");
     await press(stdin, RIGHT_ARROW, "t", " Mine.", ENTER, ENTER);
