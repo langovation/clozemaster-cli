@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Box, Text, useInput } from "ink";
-import { getRound, saveAnswer, type AnswerResult, type PlayMode, type Sentence } from "../api.js";
+import { getRound, isTypedMode, saveAnswer, type AnswerResult, type PlayMode, type Sentence } from "../api.js";
 import { playSentenceAudio, stopAudio } from "../audio.js";
 import { isCorrectAnswer, multipleChoiceOptions, pointsFor } from "../answers.js";
 import { canExplain, ExplanationPanel } from "../components/ExplanationPanel.js";
@@ -22,6 +22,7 @@ import { SettingsScreen } from "./SettingsScreen.js";
 
 const ANSWER_HINTS: Record<PlayMode, string> = {
   flashcard: "space to reveal",
+  listening: "↑ accent",
   multiple_choice: "1-4 to answer",
   text_input: "↑ accent",
 };
@@ -80,6 +81,14 @@ type PlayRoundProps = Omit<PlayProps, "choice"> & {
   wordBank: string[];
 };
 
+function ListeningCard() {
+  return (
+    <Box borderStyle="round" borderColor={colors.subtle} paddingX={1}>
+      <Text color={colors.gold}>♪ Listen…</Text>
+    </Box>
+  );
+}
+
 function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode, sentences, wordBank }: PlayRoundProps) {
   const [deck, setDeck] = useState(sentences);
   const [index, setIndex] = useState(0);
@@ -91,6 +100,7 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode
   const [saveError, setSaveError] = useState<Error>();
   const [isRevealed, setIsRevealed] = useState(false);
   const [hasUsedHint, setHasUsedHint] = useState(false);
+  const [isListening, setIsListening] = useState(mode === "listening");
   const shownAt = useRef(Date.now());
   const pendingGrade = useRef<PendingAnswer | undefined>(undefined);
 
@@ -105,11 +115,16 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode
   const [isShowingSettings, setIsShowingSettings] = useState(false);
   const isDone = Boolean(answered || (mode === "flashcard" && isRevealed));
   const isExplainable = Boolean(sentence && isDone && canExplain(sentence));
-  const canPlayAudio = Boolean(sentence && isDone && settings.audio);
-  const canOpenSettings = mode !== "text_input" || Boolean(answered);
+  const canPlayAudio = Boolean(sentence && isDone && (mode === "listening" || settings.audio));
+  const canOpenSettings = !isTypedMode(mode) || Boolean(answered);
+
+  // Like the web's listening skill: the sentence stays hidden until its audio has played once.
+  useEffect(() => {
+    if (isListening) listenToSentence();
+  }, [sentence]);
 
   useEffect(() => {
-    if (canPlayAudio) playSentenceAudio(sentence);
+    if (canPlayAudio && mode !== "listening") playSentenceAudio(sentence);
   }, [canPlayAudio, sentence]);
 
   useEffect(() => stopAudio, []);
@@ -133,6 +148,11 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode
 
   // Flashcards are self-graded, so there's nothing to show: straight on to the next card.
   // The grade is held back until the next one so "back" can take it back without a server undo.
+  async function listenToSentence() {
+    await playSentenceAudio(sentence);
+    setIsListening(false);
+  }
+
   function gradeFlashcard(isCorrect: boolean) {
     savePendingGrade();
     pendingGrade.current = { ...record({ answer: "", isCorrect }), index, sentence };
@@ -200,6 +220,7 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode
     setAnswered(undefined);
     setIsRevealed(false);
     setHasUsedHint(false);
+    setIsListening(mode === "listening");
     setIsExplaining(false);
     setIndex((current) => current + 1);
     shownAt.current = Date.now();
@@ -225,10 +246,10 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode
         <Text bold>{choice.title}</Text>
         <RoundProgress results={results.map((result) => result.isCorrect)} total={deck.length} />
       </Box>
-      <SentenceCard answered={answered} isRevealed={isRevealed} sentence={sentence} />
+      {isListening && !answered ? <ListeningCard /> : <SentenceCard answered={answered} isRevealed={isRevealed} sentence={sentence} />}
       {isExplaining && <ExplanationPanel sentence={sentence} />}
       {!answered && mode === "multiple_choice" && <MultipleChoiceAnswer onAnswer={answer} options={options} />}
-      {!answered && mode === "text_input" && <TextAnswer key={index} hasUsedHint={hasUsedHint} onAnswer={answer} onHint={() => setHasUsedHint(true)} sentence={sentence} />}
+      {!answered && isTypedMode(mode) && <TextAnswer key={index} hasUsedHint={hasUsedHint} onAnswer={answer} onHint={() => setHasUsedHint(true)} sentence={sentence} />}
       {!answered && mode === "flashcard" && (
         <FlashcardAnswer isRevealed={isRevealed} onGrade={gradeFlashcard} onReveal={() => setIsRevealed(true)} />
       )}
@@ -238,7 +259,7 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode
           answered
             ? ["enter to continue", ...(canPlayAudio ? ["p replay"] : []), ...(isExplainable ? [isExplaining ? "e hide explanation" : "e explain"] : []), "s settings", "esc back"]
             : [
-                ...(mode === "text_input" && !hasUsedHint ? ["→ hint"] : []),
+                ...(isTypedMode(mode) && !hasUsedHint ? ["→ hint"] : []),
                 ANSWER_HINTS[mode],
                 ...(isExplainable ? ["e explain"] : []),
                 ...(mode === "flashcard" && results.length > 0 ? ["b back"] : []),

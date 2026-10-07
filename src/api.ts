@@ -68,7 +68,19 @@ export type Round = {
   wordBank: string[];
 };
 
-export type PlayMode = "flashcard" | "multiple_choice" | "text_input";
+export type PlayMode = "flashcard" | "listening" | "multiple_choice" | "text_input";
+
+// Listening is the web's listening skill played with text input: hear the sentence, then type the word.
+export function isTypedMode(mode: PlayMode): boolean {
+  return mode === "text_input" || mode === "listening";
+}
+
+function apiModeAndSkill(mode: PlayMode) {
+  if (mode === "listening") return { mode: "text_input", skill: "listening" };
+  // Flashcards score like multiple choice, and the apps send them that way.
+  if (mode === "flashcard") return { mode: "multiple_choice", skill: "vocabulary" };
+  return { mode, skill: "vocabulary" };
+}
 
 export type AnswerResult = {
   languagePairing: {
@@ -193,7 +205,7 @@ export async function deleteQuickCaptureEntry(entry: QuickCaptureEntry): Promise
 
 export async function getRound({ mode, playDataUrl, scope }: { mode: PlayMode; playDataUrl: string; scope?: string }) {
   return request<Round>(playDataUrl, {
-    query: { count: "10", mode, skill: "vocabulary", ...(scope ? { scope } : {}) },
+    query: { count: "10", mode: mode === "listening" ? "text_input" : mode, skill: apiModeAndSkill(mode).skill, ...(scope ? { scope } : {}) },
   });
 }
 
@@ -217,9 +229,7 @@ export async function saveAnswer({
       correct,
       date: localDate(),
       id: sentence.id,
-      // Flashcards score like multiple choice, and the apps send them that way.
-      mode: mode === "flashcard" ? "multiple_choice" : mode,
-      skill: "vocabulary",
+      ...apiModeAndSkill(mode),
       time: secondsSpent,
       used_hint: usedHint,
     },

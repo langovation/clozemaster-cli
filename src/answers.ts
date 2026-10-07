@@ -1,4 +1,4 @@
-import type { PlayMode, Sentence } from "./api.js";
+import { isTypedMode, type PlayMode, type Sentence } from "./api.js";
 
 export type ClozeParts = { after: string; before: string; cloze: string };
 
@@ -74,7 +74,7 @@ export function multipleChoiceOptions(sentence: Sentence, wordBank: string[]): s
 export function pointsFor({ correct, mode, sentence, usedHint = false }: { correct: boolean; mode: PlayMode; sentence: Sentence; usedHint?: boolean }) {
   if (!correct) return 0;
   const newLevel = Math.min((sentence.level || 0) + 1, 4);
-  let points = newLevel * (mode === "text_input" ? 8 : 4);
+  let points = newLevel * (isTypedMode(mode) ? 8 : 4);
   if (usedHint) points /= 2;
   if (sentence.nextReview !== null && new Date(sentence.nextReview) > new Date()) points /= 2;
   return Math.floor(points);

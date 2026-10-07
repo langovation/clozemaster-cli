@@ -237,6 +237,30 @@ describe("Play", () => {
     expect(stripAnsi(lastFrame()!)).not.toContain("p replay");
   });
 
+  it("hides a listening sentence until its audio has played", async () => {
+    let finishPlaying = () => {};
+    vi.mocked(playSentenceAudio).mockReturnValueOnce(new Promise((resolve) => (finishPlaying = resolve)));
+    const { lastFrame } = renderPlay("listening");
+    await settle();
+    expect(playSentenceAudio).toHaveBeenCalledWith(sentence);
+    expect(stripAnsi(lastFrame()!)).toContain("Listen…");
+    expect(stripAnsi(lastFrame()!)).not.toContain("Tengo");
+
+    finishPlaying();
+    await settle();
+    expect(stripAnsi(lastFrame()!)).toContain("Tengo");
+  });
+
+  it("types the word for a listening sentence and scores it like text input", async () => {
+    const { lastFrame, stdin } = renderPlay("listening", { audio: false });
+    await settle();
+    await press(stdin, "mucha", ENTER);
+
+    expect(api.saveAnswer).toHaveBeenCalledWith(expect.objectContaining({ correct: true, mode: "listening" }));
+    await press(stdin, ENTER);
+    expect(stripAnsi(lastFrame()!)).toContain("+8 points");
+  });
+
   it("opens settings mid-round and comes back to the same sentence", async () => {
     const { lastFrame, stdin } = renderPlay("multiple_choice");
     await settle();

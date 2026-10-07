@@ -53,6 +53,7 @@ describe("App against recorded API responses", () => {
     await press(stdin, DOWN, DOWN, ENTER);
     expect(lastFrame()).toContain("How do you want to answer?");
     expect(lastFrame()).toContain("Flashcards");
+    expect(lastFrame()).toContain("Listening");
   });
 
   it("says when there is nothing to review and goes back on esc", async () => {

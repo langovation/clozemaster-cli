@@ -29,14 +29,18 @@ async function downloadAudio(sentence: Sentence): Promise<string | undefined> {
   return audioPath;
 }
 
-function playFile(audioPath: string, players = PLAYERS) {
+// Resolves once playback ends, is stopped, or no player could play it.
+function playFile(audioPath: string, players = PLAYERS): Promise<void> {
   const [player, ...fallbacks] = players;
-  if (!player) return;
-  const playback = spawn(player.command, [...player.args, audioPath], { stdio: "ignore" });
-  playback.on("error", () => {
-    if (currentPlayback === playback) playFile(audioPath, fallbacks);
+  if (!player) return Promise.resolve();
+  return new Promise((resolve) => {
+    const playback = spawn(player.command, [...player.args, audioPath], { stdio: "ignore" });
+    playback.on("error", () => {
+      resolve(currentPlayback === playback ? playFile(audioPath, fallbacks) : undefined);
+    });
+    playback.on("exit", () => resolve());
+    currentPlayback = playback;
   });
-  currentPlayback = playback;
 }
 
 export function stopAudio() {
@@ -50,6 +54,6 @@ export async function playSentenceAudio(sentence: Sentence) {
   const request = latestRequest;
   try {
     const audioPath = await downloadAudio(sentence);
-    if (audioPath && request === latestRequest) playFile(audioPath);
+    if (audioPath && request === latestRequest) await playFile(audioPath);
   } catch {}
 }

@@ -6,11 +6,12 @@ import { Select } from "../components/Select.js";
 
 export const MODE_LABELS: Record<PlayMode, string> = {
   flashcard: "Flashcards",
+  listening: "Listening",
   multiple_choice: "Multiple choice",
   text_input: "Text input",
 };
 
-const MODE_ORDER: PlayMode[] = ["multiple_choice", "text_input", "flashcard"];
+const MODE_ORDER: PlayMode[] = ["multiple_choice", "text_input", "listening", "flashcard"];
 
 export function nextMode(mode: PlayMode): PlayMode {
   return MODE_ORDER[(MODE_ORDER.indexOf(mode) + 1) % MODE_ORDER.length];
@@ -31,6 +32,7 @@ export function PickMode({ onBack, onPick, title }: PickModeProps) {
           items={[
             { detail: "pick from 4", label: MODE_LABELS.multiple_choice, value: "multiple_choice" as const },
             { detail: "type the word", label: MODE_LABELS.text_input, value: "text_input" as const },
+            { detail: "hear it, then type the word", label: MODE_LABELS.listening, value: "listening" as const },
             { detail: "reveal and self-grade", label: MODE_LABELS.flashcard, value: "flashcard" as const },
           ]}
           onSelect={onPick}
