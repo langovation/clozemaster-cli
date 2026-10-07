@@ -53,6 +53,17 @@ describe("Quick Capture", () => {
     expect(server.quickCaptureEntries().map((entry) => entry.text)).toEqual(["gato"]);
   });
 
+  it("deletes a word added after emptying the list", async () => {
+    const { lastFrame, stdin } = await openQuickCapture();
+    await press(stdin, "gato", ENTER);
+    await waitForText(lastFrame, "gato (translated)");
+    await press(stdin, TAB, "d", "perro", ENTER);
+    await waitForText(lastFrame, "perro (translated)");
+    await press(stdin, TAB, "d");
+    await waitForText(lastFrame, "Nothing captured yet.");
+    expect(server.quickCaptureEntries()).toEqual([]);
+  });
+
   it("imports the selected words into a picked collection", async () => {
     const { lastFrame, stdin } = await openQuickCapture();
     await press(stdin, "gato", ENTER, "perro", ENTER, "casa", ENTER);

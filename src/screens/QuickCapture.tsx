@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Box, Text, useInput } from "ink";
 import TextInput from "ink-text-input";
 import {
@@ -36,10 +36,14 @@ export function QuickCapture({ onBack, pairing }: QuickCaptureProps) {
   const [selectedIds, setSelectedIds] = useState(new Set<string>());
   const [entriesToImport, setEntriesToImport] = useState<QuickCaptureEntry[]>();
   const [importNotice, setImportNotice] = useState<string>();
+  const changeCount = useRef(0);
 
+  // A load that started before an add or delete would bring back the old list, so it's dropped.
   async function loadEntries() {
+    const changeCountAtStart = changeCount.current;
     try {
-      setEntries(await getQuickCaptureEntries(pairing));
+      const loaded = await getQuickCaptureEntries(pairing);
+      if (changeCountAtStart === changeCount.current) setEntries(loaded);
     } catch (loadError) {
       setError(loadError as Error);
     }
@@ -60,6 +64,7 @@ export function QuickCapture({ onBack, pairing }: QuickCaptureProps) {
     const trimmed = submitted.trim();
     if (!trimmed) return;
     setText("");
+    changeCount.current++;
     try {
       const entry = await addQuickCaptureEntry(pairing, trimmed);
       setEntries((current = []) => [entry, ...current.filter((existing) => existing.id !== entry.id)]);
@@ -72,8 +77,9 @@ export function QuickCapture({ onBack, pairing }: QuickCaptureProps) {
   async function deleteHighlightedEntry(list: QuickCaptureEntry[]) {
     const entry = list[highlighted];
     const remaining = list.filter((existing) => existing.id !== entry.id);
+    changeCount.current++;
     setEntries(remaining);
-    setHighlighted(Math.min(highlighted, remaining.length - 1));
+    setHighlighted(Math.max(0, Math.min(highlighted, remaining.length - 1)));
     if (remaining.length === 0) setIsListFocused(false);
     try {
       await deleteQuickCaptureEntry(entry);
