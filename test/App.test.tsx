@@ -58,6 +58,15 @@ describe("App against recorded API responses", () => {
     expect(lastFrame()).toContain("Listening");
   });
 
+  it("shows the core stats from the mobile dashboard under the pairing name", async () => {
+    const { lastFrame } = await openPairing();
+    const frame = stripAnsi(lastFrame()!);
+    expect(frame).toContain("Level 7 · 112 points to level 8");
+    expect(frame).toContain("1,320 points total");
+    expect(frame).toContain("3rd on this week's leaderboard");
+    expect(frame).toContain("0 playing · 0 favorites");
+  });
+
   it("says when there is nothing to review and goes back on esc", async () => {
     const { lastFrame, stdin } = await openPairing();
     await press(stdin, ENTER, ENTER);

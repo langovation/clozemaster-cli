@@ -4,7 +4,9 @@ export type LanguagePairing = {
   id: number;
   baseLanguageName: string;
   currentStreakDays: number;
+  currentWeekLeaderboardRank?: number;
   level: number;
+  nextLevelPoints: number;
   numPointsToday: number;
   score: number;
   targetLanguageName: string;
@@ -16,6 +18,7 @@ export type Collection = {
   collectionClozeSentencesUpsertUrl: string;
   dashboardCollection: boolean;
   name: string;
+  numFavorited: number;
   numMastered: number;
   numPlaying: number;
   numReadyForReview: number;

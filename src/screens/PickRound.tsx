@@ -48,6 +48,15 @@ function collectionChoice(collection: Collection): SelectItem<RoundChoice> {
   return { detail: `${numNew} new · ${collection.numReadyForReview} due`, label: collection.name, value: collectionRoundChoice(collection) };
 }
 
+function ordinalize(rank: number): string {
+  const suffixes: Record<string, string> = { one: "st", two: "nd", few: "rd", other: "th" };
+  return `${rank}${suffixes[new Intl.PluralRules("en", { type: "ordinal" }).select(rank)]}`;
+}
+
+function sumOf(collections: Collection[], count: (collection: Collection) => number): string {
+  return collections.reduce((sum, collection) => sum + count(collection), 0).toLocaleString("en");
+}
+
 export function PickRound({ onBack, onBrowse, onOpenQuickCapture, onOpenSettings, onPick, pairing }: PickRoundProps) {
   const { data: collections, error, isLoading } = useRequest(() => getCollections(pairing), [pairing.id]);
 
@@ -71,6 +80,9 @@ export function PickRound({ onBack, onBrowse, onOpenQuickCapture, onOpenSettings
           <Text bold>{pairing.targetLanguageName} from {pairing.baseLanguageName}</Text>
           <Text color={colors.streak}>{pairing.currentStreakDays} day streak</Text>
           <Text color={colors.gold}>{pairing.numPointsToday} points today</Text>
+          <Text>Level {pairing.level} · {(pairing.nextLevelPoints - pairing.score).toLocaleString("en")} points to level {pairing.level + 1} · {pairing.score.toLocaleString("en")} points total</Text>
+          {Boolean(pairing.currentWeekLeaderboardRank) && <Text>{ordinalize(pairing.currentWeekLeaderboardRank!)} on this week's leaderboard</Text>}
+          <Text dimColor>{sumOf(collections, (collection) => collection.numPlaying)} playing · {sumOf(collections, (collection) => collection.numFavorited)} favorites</Text>
         </Box>
       </Box>
       <Box flexDirection="column">
