@@ -164,6 +164,15 @@ describe("Play", () => {
     expect(stripAnsi(lastFrame()!)).toContain("+4 points");
   });
 
+  it("gives only one hint per sentence", async () => {
+    const { lastFrame, stdin } = renderPlay("text_input");
+    await settle();
+    await press(stdin, RIGHT_ARROW, RIGHT_ARROW);
+    const frame = stripAnsi(lastFrame()!);
+    expect(frame).toContain("❯ m\n");
+    expect(frame).not.toContain("→ hint");
+  });
+
   it("shows the explanation after answering", async () => {
     const explained = {
       ...sentence,

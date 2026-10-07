@@ -36,7 +36,7 @@ export function PickMode({ onBack, onPick, title }: PickModeProps) {
           onSelect={onPick}
         />
       </Box>
-      <Hints hints={["enter to pick", "esc to go back"]} />
+      <Hints hints={["enter to pick", "esc back"]} />
     </Box>
   );
 }

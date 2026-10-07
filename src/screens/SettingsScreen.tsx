@@ -69,7 +69,7 @@ export function SettingsScreen({ onBack }: { onBack: () => void }) {
         })}
       </Box>
       <Text dimColor>{ROWS[highlighted].description}</Text>
-      <Hints hints={["enter to change", "esc to go back"]} />
+      <Hints hints={["enter to change", "esc back"]} />
     </Box>
   );
 }

@@ -119,7 +119,7 @@ export function QuickCapture({ onBack, pairing }: QuickCaptureProps) {
           })}
         </Box>
       )}
-      <Hints hints={isListFocused ? ["↑↓ to move", "d delete", "tab to type", "esc to go back"] : ["enter to save", "tab to pick a word", "esc to go back"]} />
+      <Hints hints={isListFocused ? ["↑↓ to move", "d delete", "tab to type", "esc back"] : ["enter to save", "tab to pick a word", "esc back"]} />
     </Box>
   );
 }

@@ -23,7 +23,7 @@ import { SettingsScreen } from "./SettingsScreen.js";
 const ANSWER_HINTS: Record<PlayMode, string> = {
   flashcard: "space to reveal",
   multiple_choice: "1-4 to answer",
-  text_input: "→ hint · ↑ accent",
+  text_input: "↑ accent",
 };
 
 type PlayProps = {
@@ -51,7 +51,7 @@ export function Play({ choice, mode, onMenu, onProgress, onToggleMode }: PlayPro
     return (
       <Box flexDirection="column" gap={1}>
         <Text>Nothing to play in {choice.title} right now.</Text>
-        <Hints hints={["esc to go back"]} />
+        <Hints hints={["esc back"]} />
       </Box>
     );
   }
@@ -90,6 +90,7 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode
   const { settings } = useSettings();
   const [saveError, setSaveError] = useState<Error>();
   const [isRevealed, setIsRevealed] = useState(false);
+  const [hasUsedHint, setHasUsedHint] = useState(false);
   const shownAt = useRef(Date.now());
   const pendingGrade = useRef<PendingAnswer | undefined>(undefined);
 
@@ -155,9 +156,9 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode
     pendingGrade.current = undefined;
   }
 
-  function answer(attempt: string, usedHint = false) {
+  function answer(attempt: string) {
     const isCorrect = isCorrectAnswer(attempt, sentence, { strictAccents: settings.strictAccents });
-    const result = record({ answer: attempt.trim(), isCorrect, usedHint });
+    const result = record({ answer: attempt.trim(), isCorrect, usedHint: hasUsedHint });
     setAnswered(result);
     submit({ ...result, sentence });
   }
@@ -198,6 +199,7 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode
     stopAudio();
     setAnswered(undefined);
     setIsRevealed(false);
+    setHasUsedHint(false);
     setIsExplaining(false);
     setIndex((current) => current + 1);
     shownAt.current = Date.now();
@@ -226,7 +228,7 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode
       <SentenceCard answered={answered} isRevealed={isRevealed} sentence={sentence} />
       {isExplaining && <ExplanationPanel sentence={sentence} />}
       {!answered && mode === "multiple_choice" && <MultipleChoiceAnswer onAnswer={answer} options={options} />}
-      {!answered && mode === "text_input" && <TextAnswer key={index} onAnswer={answer} sentence={sentence} />}
+      {!answered && mode === "text_input" && <TextAnswer key={index} hasUsedHint={hasUsedHint} onAnswer={answer} onHint={() => setHasUsedHint(true)} sentence={sentence} />}
       {!answered && mode === "flashcard" && (
         <FlashcardAnswer isRevealed={isRevealed} onGrade={gradeFlashcard} onReveal={() => setIsRevealed(true)} />
       )}
@@ -234,14 +236,15 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode
       <Hints
         hints={
           answered
-            ? ["enter to continue", ...(canPlayAudio ? ["p replay"] : []), ...(isExplainable ? [isExplaining ? "e hide explanation" : "e explain"] : []), "s settings", "esc to go back"]
+            ? ["enter to continue", ...(canPlayAudio ? ["p replay"] : []), ...(isExplainable ? [isExplaining ? "e hide explanation" : "e explain"] : []), "s settings", "esc back"]
             : [
+                ...(mode === "text_input" && !hasUsedHint ? ["→ hint"] : []),
                 ANSWER_HINTS[mode],
                 ...(isExplainable ? ["e explain"] : []),
                 ...(mode === "flashcard" && results.length > 0 ? ["b back"] : []),
                 `tab: ${MODE_LABELS[nextMode(mode)].toLowerCase()}`,
                 ...(canOpenSettings ? ["s settings"] : []),
-                "esc to go back",
+                "esc back",
               ]
         }
       />

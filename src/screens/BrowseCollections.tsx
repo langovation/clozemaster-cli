@@ -40,7 +40,7 @@ export function BrowseCollections({ onBack, onPick, pairing }: BrowseCollections
         }))}
         onSelect={onPick}
       />
-      <Hints hints={["enter to pick", "esc to go back"]} />
+      <Hints hints={["enter to pick", "esc back"]} />
     </Box>
   );
 }

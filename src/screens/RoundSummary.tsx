@@ -97,7 +97,7 @@ export function RoundSummary({ elapsedSeconds, onMenu, onPlayAgain, progress, re
           <PlayedSentence key={result.sentence.id} result={result} />
         ))}
       </Box>
-      <Hints hints={["enter: next round", "esc to go back"]} />
+      <Hints hints={["enter: next round", "esc back"]} />
     </Box>
   );
 }

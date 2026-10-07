@@ -7,18 +7,18 @@ import { isCorrectAnswer, isOnTrack, lettersOff, withNextLetter } from "../answe
 import { useSettings } from "../SettingsContext.js";
 import { colors } from "../theme.js";
 
-type TextAnswerProps = { onAnswer: (answer: string, usedHint: boolean) => void; sentence: Sentence };
+type TextAnswerProps = { hasUsedHint: boolean; onAnswer: (answer: string) => void; onHint: () => void; sentence: Sentence };
 
-export function TextAnswer({ onAnswer, sentence }: TextAnswerProps) {
+export function TextAnswer({ hasUsedHint, onAnswer, onHint, sentence }: TextAnswerProps) {
   const { settings } = useSettings();
   const [answer, setAnswer] = useState("");
-  const [usedHint, setUsedHint] = useState(false);
   const [spellingHint, setSpellingHint] = useState<{ answer: string; lettersOff: number }>();
   const check = { strictAccents: settings.strictAccents };
 
   useInput((_input, key) => {
-    if (key.rightArrow) {
-      setUsedHint(true);
+    // Like the web: one letter hint per sentence.
+    if (key.rightArrow && !hasUsedHint) {
+      onHint();
       setAnswer((current) => withNextLetter(current, sentence, check));
     }
     if (key.upArrow) setAnswer((current) => cycleLastLetterAccent(current, 1));
@@ -32,7 +32,7 @@ export function TextAnswer({ onAnswer, sentence }: TextAnswerProps) {
       setSpellingHint({ answer: submitted, lettersOff: offBy });
       return;
     }
-    onAnswer(submitted, usedHint);
+    onAnswer(submitted);
   }
 
   const typingColor = settings.typingColorHint && answer ? (isOnTrack(answer, sentence, check) ? colors.brand : colors.danger) : undefined;

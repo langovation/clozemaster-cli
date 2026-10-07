@@ -79,7 +79,7 @@ export function PickRound({ onBack, onBrowse, onOpenQuickCapture, onOpenSettings
           onSelect={(picked) => (picked === BROWSE ? onBrowse() : onPick(picked))}
         />
       </Box>
-      <Hints hints={["enter to pick", "c quick capture", "s settings", "f feedback", "esc to go back"]} />
+      <Hints hints={["enter to pick", "c quick capture", "s settings", "f feedback", "esc back"]} />
     </Box>
   );
 }
