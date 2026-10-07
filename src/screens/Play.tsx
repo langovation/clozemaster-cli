@@ -51,7 +51,7 @@ export function Play({ choice, mode, onMenu, onProgress, onToggleMode }: PlayPro
     return (
       <Box flexDirection="column" gap={1}>
         <Text>Nothing to play in {choice.title} right now.</Text>
-        <Hints hints={["esc for menu"]} />
+        <Hints hints={["esc to go back"]} />
       </Box>
     );
   }
@@ -234,14 +234,14 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode
       <Hints
         hints={
           answered
-            ? ["enter to continue", ...(canPlayAudio ? ["p replay"] : []), ...(isExplainable ? [isExplaining ? "e hide explanation" : "e explain"] : []), "s settings", "esc menu"]
+            ? ["enter to continue", ...(canPlayAudio ? ["p replay"] : []), ...(isExplainable ? [isExplaining ? "e hide explanation" : "e explain"] : []), "s settings", "esc to go back"]
             : [
                 ANSWER_HINTS[mode],
                 ...(isExplainable ? ["e explain"] : []),
                 ...(mode === "flashcard" && results.length > 0 ? ["b back"] : []),
                 `tab: ${MODE_LABELS[nextMode(mode)].toLowerCase()}`,
                 ...(canOpenSettings ? ["s settings"] : []),
-                "esc menu",
+                "esc to go back",
               ]
         }
       />
