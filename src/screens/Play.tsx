@@ -279,7 +279,7 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode
                 ...(isTypedMode(mode) && !hasUsedHint ? ["→ hint"] : []),
                 ANSWER_HINTS[mode],
                 ...(isExplainable ? ["e explain"] : []),
-                ...(mode === "flashcard" && results.length > 0 ? ["b back"] : []),
+                ...(mode === "flashcard" && results.length > 0 ? ["b previous card"] : []),
                 `tab: ${MODE_LABELS[nextMode(mode)].toLowerCase()}`,
                 ...(canOpenSettings ? ["s settings"] : []),
                 "esc back",
