@@ -135,6 +135,18 @@ describe("Play", () => {
     expect(stripAnsi(lastFrame()!)).toContain("Round complete!");
   });
 
+  it("shows a flashcard's first letter for a hint, once, and halves the points", async () => {
+    const { lastFrame, stdin } = renderPlay("flashcard");
+    await settle();
+    await press(stdin, RIGHT_ARROW, RIGHT_ARROW);
+    expect(stripAnsi(lastFrame()!)).toContain("Tengo m____ hambre.");
+    expect(stripAnsi(lastFrame()!)).not.toContain("→ hint");
+
+    await press(stdin, " ", "2");
+    expect(api.saveAnswer).toHaveBeenCalledWith(expect.objectContaining({ correct: true, usedHint: true }));
+    expect(stripAnsi(lastFrame()!)).toContain("+2 points");
+  });
+
   it("goes back to the previous flashcard and only saves the final grade", async () => {
     const second = { ...sentence, id: 8, text: "Tengo {{sueño}}.", translation: "I'm sleepy." };
     vi.mocked(api.getRound).mockResolvedValue({ collectionClozeSentences: [sentence, second], wordBank: [] });

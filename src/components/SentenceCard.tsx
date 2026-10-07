@@ -7,15 +7,15 @@ import { colors } from "../theme.js";
 
 export type AnsweredSentence = { answer: string; isCorrect: boolean; points: number };
 
-type SentenceCardProps = { answered?: AnsweredSentence; isRevealed?: boolean; sentence: Sentence };
+type SentenceCardProps = { answered?: AnsweredSentence; hintedLetters?: string; isRevealed?: boolean; sentence: Sentence };
 
-function Blank({ answered, cloze, isRevealed }: { answered?: AnsweredSentence; cloze: string; isRevealed?: boolean }) {
+function Blank({ answered, cloze, hintedLetters = "", isRevealed }: { answered?: AnsweredSentence; cloze: string; hintedLetters?: string; isRevealed?: boolean }) {
   if (answered) return <Text bold color={answered.isCorrect ? colors.brand : colors.danger}>{answered.answer || cloze}</Text>;
   if (isRevealed) return <Text bold>{cloze}</Text>;
-  return <Text color={colors.brand}>{"_".repeat(Math.max(cloze.length, 3))}</Text>;
+  return <Text color={colors.brand}>{hintedLetters}{"_".repeat(Math.max(cloze.length - hintedLetters.length, 3 - hintedLetters.length, 0))}</Text>;
 }
 
-export function SentenceCard({ answered, isRevealed, sentence }: SentenceCardProps) {
+export function SentenceCard({ answered, hintedLetters, isRevealed, sentence }: SentenceCardProps) {
   const { settings } = useSettings();
   const { after, before, cloze } = splitCloze(sentence.text);
   const isDone = Boolean(answered || isRevealed);
@@ -27,7 +27,7 @@ export function SentenceCard({ answered, isRevealed, sentence }: SentenceCardPro
         {settings.hints && !isDone && sentence.hint && <Text color={colors.gold}>hint: {sentence.hint}</Text>}
         <Text>
           {before}
-          <Blank answered={answered} cloze={cloze} isRevealed={isRevealed} />
+          <Blank answered={answered} cloze={cloze} hintedLetters={hintedLetters} isRevealed={isRevealed} />
           {after}
         </Text>
         {settings.pronunciation && isDone && sentence.pronunciation && <Text italic>{sentence.pronunciation}</Text>}

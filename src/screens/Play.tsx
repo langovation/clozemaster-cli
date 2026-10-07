@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Box, Text, useInput } from "ink";
 import { getRound, isTypedMode, saveAnswer, type AnswerResult, type PlayMode, type Sentence } from "../api.js";
 import { playSentenceAudio, playSoundEffect, preloadSentenceAudio, stopAudio } from "../audio.js";
-import { isCorrectAnswer, multipleChoiceOptions, pointsFor } from "../answers.js";
+import { isCorrectAnswer, multipleChoiceOptions, pointsFor, splitCloze } from "../answers.js";
 import { canExplain, ExplanationPanel } from "../components/ExplanationPanel.js";
 import { FlashcardAnswer } from "../components/FlashcardAnswer.js";
 import { ErrorMessage } from "../components/ErrorMessage.js";
@@ -153,6 +153,7 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode
     if (key.tab && !answered) onToggleMode();
     if (key.return && answered) goToNextSentence();
     if (mode === "flashcard" && (input === "b" || key.backspace || key.delete)) goBackToPreviousCard();
+    if (mode === "flashcard" && key.rightArrow && !isRevealed) setHasUsedHint(true);
     if (input === "s" && canOpenSettings) setIsShowingSettings(true);
   }, { isActive: !isShowingSettings });
 
@@ -171,7 +172,7 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode
 
   function gradeFlashcard(isCorrect: boolean) {
     savePendingGrade();
-    pendingGrade.current = { ...record({ answer: "", isCorrect }), index, sentence };
+    pendingGrade.current = { ...record({ answer: "", isCorrect, usedHint: hasUsedHint }), index, sentence };
     goToNextSentence();
     if (isCorrect && settings.soundEffects) playSoundEffect("correct");
   }
@@ -184,6 +185,7 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode
     if (!previous.isCorrect) setDeck((current) => current.slice(0, -1));
     setAnswered(undefined);
     setIsRevealed(true);
+    setHasUsedHint(previous.usedHint);
     setIndex(previous.index);
     shownAt.current = Date.now() - previous.secondsSpent * 1000;
   }
@@ -263,7 +265,7 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode
         <Text bold>{choice.title}</Text>
         <RoundProgress results={results.map((result) => result.isCorrect)} total={deck.length} />
       </Box>
-      {isListening && !answered ? <ListeningCard /> : <SentenceCard answered={answered} isRevealed={isRevealed} sentence={sentence} />}
+      {isListening && !answered ? <ListeningCard /> : <SentenceCard answered={answered} hintedLetters={mode === "flashcard" && hasUsedHint ? splitCloze(sentence.text).cloze[0] : undefined} isRevealed={isRevealed} sentence={sentence} />}
       {isExplaining && <ExplanationPanel sentence={sentence} />}
       {!answered && mode === "multiple_choice" && <MultipleChoiceAnswer onAnswer={answer} options={options} />}
       {!answered && isTypedMode(mode) && <TextAnswer key={index} hasUsedHint={hasUsedHint} onAnswer={answer} onHint={() => setHasUsedHint(true)} sentence={sentence} />}
@@ -276,7 +278,7 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode
           answered
             ? ["enter to continue", ...(canPlayAudio ? ["p replay"] : []), ...(isExplainable ? [isExplaining ? "e hide explanation" : "e explain"] : []), "s settings", "esc back"]
             : [
-                ...(isTypedMode(mode) && !hasUsedHint ? ["→ hint"] : []),
+                ...((isTypedMode(mode) || (mode === "flashcard" && !isRevealed)) && !hasUsedHint ? ["→ hint"] : []),
                 ANSWER_HINTS[mode],
                 ...(isExplainable ? ["e explain"] : []),
                 ...(mode === "flashcard" && results.length > 0 ? ["b previous card"] : []),
