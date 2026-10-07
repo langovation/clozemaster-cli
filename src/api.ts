@@ -239,10 +239,18 @@ export async function importQuickCaptureEntries(
   });
 }
 
+// The web saves the mode and skill asked for as the user's play options, so only send ones it knows.
 export async function getRound({ mode, playDataUrl, scope }: { mode: PlayMode; playDataUrl: string; scope?: string }) {
-  return request<Round>(playDataUrl, {
-    query: { count: "10", mode: mode === "listening" ? "text_input" : mode, skill: apiModeAndSkill(mode).skill, ...(scope ? { scope } : {}) },
-  });
+  try {
+    return await request<Round>(playDataUrl, {
+      query: { count: "10", ...apiModeAndSkill(mode), ...(scope ? { scope } : {}) },
+    });
+  } catch (error) {
+    if (mode === "listening" && error instanceof ApiError && error.status === 400) {
+      throw new Error("Your free listening trial is used up. Listening is part of Clozemaster Pro.");
+    }
+    throw error;
+  }
 }
 
 export async function saveAnswer({
@@ -294,15 +302,28 @@ function explanationFrom(job: ExplanationJob): Explanation | undefined {
 
 const POLL_INTERVAL_MS = 2000;
 const MAX_POLLS = 75;
+const explanationsInFlight = new Map<number, Promise<Explanation>>();
 
-// Same flow as the mobile app: use what's there, otherwise ask for one and poll until it's written.
+// Shared per sentence so closing and reopening the panel picks up the same request instead of asking for another.
 export async function getExplanation(sentence: Sentence): Promise<Explanation> {
   if (sentence.structuredExplanation || sentence.explanation) {
     return { structured: sentence.structuredExplanation || undefined, text: sentence.explanation || undefined };
   }
+  if (!explanationsInFlight.has(sentence.id)) {
+    const explanation = fetchExplanation(sentence);
+    explanationsInFlight.set(sentence.id, explanation);
+    explanation.catch(() => explanationsInFlight.delete(sentence.id));
+  }
+  return explanationsInFlight.get(sentence.id)!;
+}
+
+// Same flow as the mobile app: use what's there, otherwise ask for one and poll until it's written.
+async function fetchExplanation(sentence: Sentence): Promise<Explanation> {
   if (!sentence.explanationJobUrl) throw new Error("No explanation available.");
 
-  const existing = explanationFrom(await request<ExplanationJob>(sentence.explanationJobUrl));
+  // Like the mobile app, a past failure just means asking again.
+  const { tracker } = await request<ExplanationJob>(sentence.explanationJobUrl);
+  const existing = tracker.status === "failed" ? undefined : explanationFrom({ tracker });
   if (existing) return existing;
 
   try {
