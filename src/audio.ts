@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { getSentenceAudioUrl, type Sentence } from "./api.js";
+import { SOUND_EFFECT_FILES } from "./soundEffectFiles.js";
 
 const PLAYERS: { args: string[]; command: string }[] =
   process.platform === "darwin"
@@ -62,6 +63,23 @@ export function stopAudio() {
   latestRequest++;
   currentPlayback?.kill();
   currentPlayback = undefined;
+}
+
+export type SoundEffect = keyof typeof SOUND_EFFECT_FILES;
+
+// Resolves true once the sound has finished, false if something else stopped it.
+export async function playSoundEffect(soundEffect: SoundEffect): Promise<boolean> {
+  stopAudio();
+  const request = latestRequest;
+  const audioPath = path.join(cacheDirectory, `${soundEffect}.mp3`);
+  try {
+    if (!fs.existsSync(audioPath)) {
+      fs.mkdirSync(cacheDirectory, { recursive: true });
+      fs.writeFileSync(audioPath, Buffer.from(SOUND_EFFECT_FILES[soundEffect], "base64"));
+    }
+    await playFile(audioPath);
+  } catch {}
+  return request === latestRequest;
 }
 
 export async function playSentenceAudio(sentence: Sentence) {

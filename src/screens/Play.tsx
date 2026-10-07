@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Box, Text, useInput } from "ink";
 import { getRound, isTypedMode, saveAnswer, type AnswerResult, type PlayMode, type Sentence } from "../api.js";
-import { playSentenceAudio, preloadSentenceAudio, stopAudio } from "../audio.js";
+import { playSentenceAudio, playSoundEffect, preloadSentenceAudio, stopAudio } from "../audio.js";
 import { isCorrectAnswer, multipleChoiceOptions, pointsFor } from "../answers.js";
 import { canExplain, ExplanationPanel } from "../components/ExplanationPanel.js";
 import { FlashcardAnswer } from "../components/FlashcardAnswer.js";
@@ -130,8 +130,12 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode
   }, [sentence]);
 
   useEffect(() => {
-    if (canPlayAudio && mode !== "listening") playSentenceAudio(sentence);
-  }, [canPlayAudio, sentence]);
+    if (answered) playAfterAnswering(answered);
+  }, [answered]);
+
+  useEffect(() => {
+    if (isRevealed && settings.audio) playSentenceAudio(sentence);
+  }, [isRevealed, sentence]);
 
   useEffect(() => stopAudio, []);
 
@@ -154,6 +158,12 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode
 
   // Flashcards are self-graded, so there's nothing to show: straight on to the next card.
   // The grade is held back until the next one so "back" can take it back without a server undo.
+  // Like the mobile app: the chime for a right answer, then the sentence.
+  async function playAfterAnswering({ isCorrect }: AnsweredSentence) {
+    const isChimeDone = isCorrect && settings.soundEffects ? await playSoundEffect("correct") : true;
+    if (isChimeDone && mode !== "listening" && settings.audio) playSentenceAudio(sentence);
+  }
+
   async function listenToSentence() {
     await playSentenceAudio(sentence);
     setIsListening(false);
@@ -163,6 +173,7 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode
     savePendingGrade();
     pendingGrade.current = { ...record({ answer: "", isCorrect }), index, sentence };
     goToNextSentence();
+    if (isCorrect && settings.soundEffects) playSoundEffect("correct");
   }
 
   function goBackToPreviousCard() {

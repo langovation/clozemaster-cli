@@ -8,6 +8,7 @@ export type Settings = {
   audio: boolean;
   hints: boolean;
   pronunciation: boolean;
+  soundEffects: boolean;
   spellingHints: boolean;
   strictAccents: boolean;
   translation: TranslationVisibility;
@@ -19,6 +20,7 @@ export const DEFAULT_SETTINGS: Settings = {
   audio: true,
   hints: true,
   pronunciation: true,
+  soundEffects: true,
   spellingHints: true,
   strictAccents: true,
   translation: "visible",

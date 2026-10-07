@@ -1,10 +1,12 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Box, Text, useInput } from "ink";
 import type { AnswerResult, Sentence } from "../api.js";
+import { playSoundEffect } from "../audio.js";
 import { splitCloze } from "../answers.js";
 import { Hints } from "../components/Hints.js";
 import { PixelArt } from "../components/PixelArt.js";
 import type { AnsweredSentence } from "../components/SentenceCard.js";
+import { useSettings } from "../SettingsContext.js";
 import { TROPHY } from "../sprites.js";
 import { colors } from "../theme.js";
 
@@ -66,6 +68,12 @@ function DailyGoal({ progress }: { progress: AnswerResult["languagePairing"] }) 
 }
 
 export function RoundSummary({ elapsedSeconds, onMenu, onPlayAgain, progress, results }: RoundSummaryProps) {
+  const { settings } = useSettings();
+
+  useEffect(() => {
+    if (settings.soundEffects) playSoundEffect("success");
+  }, []);
+
   useInput((_input, key) => {
     if (key.return) onPlayAgain();
     if (key.escape) onMenu();

@@ -4,7 +4,7 @@ import React from "react";
 import { render } from "ink-testing-library";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../src/api.js";
-import { playSentenceAudio, preloadSentenceAudio } from "../src/audio.js";
+import { playSentenceAudio, playSoundEffect, preloadSentenceAudio } from "../src/audio.js";
 import { configDirectory } from "../src/config.js";
 import { Play } from "../src/screens/Play.js";
 import { saveSettings, DEFAULT_SETTINGS, type Settings } from "../src/settings.js";
@@ -35,12 +35,13 @@ function renderPlay(mode: api.PlayMode, settings: Partial<Settings> = {}) {
   );
 }
 
-vi.mock("../src/audio.js", () => ({ playSentenceAudio: vi.fn(), preloadSentenceAudio: vi.fn(), stopAudio: vi.fn() }));
+vi.mock("../src/audio.js", () => ({ playSentenceAudio: vi.fn(), playSoundEffect: vi.fn(async () => true), preloadSentenceAudio: vi.fn(), stopAudio: vi.fn() }));
 
 describe("Play", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.mocked(playSentenceAudio).mockClear();
+    vi.mocked(playSoundEffect).mockClear();
     fs.rmSync(path.join(configDirectory, "settings.json"), { force: true });
     vi.spyOn(api, "getRound").mockResolvedValue({ collectionClozeSentences: [sentence], wordBank: [] });
     vi.spyOn(api, "saveAnswer").mockResolvedValue({ languagePairing: progress });
@@ -296,6 +297,32 @@ describe("Play", () => {
     expect(api.saveAnswer).toHaveBeenCalledWith(expect.objectContaining({ correct: true, mode: "listening" }));
     await press(stdin, ENTER);
     expect(stripAnsi(lastFrame()!)).toContain("+8 points");
+  });
+
+  it("chimes for a right answer, then plays the sentence, then the round's done sound", async () => {
+    const { stdin } = renderPlay("text_input");
+    await settle();
+    await press(stdin, "mucha", ENTER);
+    expect(playSoundEffect).toHaveBeenCalledWith("correct");
+    expect(playSentenceAudio).toHaveBeenCalledWith(sentence);
+
+    await press(stdin, ENTER);
+    expect(playSoundEffect).toHaveBeenLastCalledWith("success");
+  });
+
+  it("doesn't chime for a wrong answer", async () => {
+    const { stdin } = renderPlay("text_input");
+    await settle();
+    await press(stdin, "poco", ENTER);
+    expect(playSoundEffect).not.toHaveBeenCalled();
+  });
+
+  it("plays no sound effects with them turned off", async () => {
+    const { stdin } = renderPlay("text_input", { soundEffects: false });
+    await settle();
+    await press(stdin, "mucha", ENTER, ENTER);
+    expect(playSoundEffect).not.toHaveBeenCalled();
+    expect(playSentenceAudio).toHaveBeenCalledWith(sentence);
   });
 
   it("opens settings mid-round and comes back to the same sentence", async () => {
