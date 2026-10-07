@@ -455,13 +455,27 @@ describe("Play", () => {
       expect(stripAnsi(lastFrame()!)).toContain("I'm very hungry. Really.");
     });
 
-    it("moves the hidden word in the user's own collection", async () => {
-      vi.mocked(api.getRound).mockResolvedValue({ collection: { isEditable: true }, collectionClozeSentences: [sentence], wordBank: [] });
+    it("deletes a sentence from the user's own collection and moves on to the next card", async () => {
+      vi.spyOn(api, "deleteSentence").mockResolvedValue();
+      const ownSentence = { ...sentence, url: "https://example.com/ccs/7" };
+      const nextSentence = { ...sentence, id: 8, text: "Tengo {{poco}} tiempo.", translation: "I have little time." };
+      vi.mocked(api.getRound).mockResolvedValue({ collection: { isEditable: true }, collectionClozeSentences: [ownSentence, nextSentence], wordBank: [] });
+      const { lastFrame, stdin } = renderPlay("multiple_choice");
+      await settle();
+      await press(stdin, "c", "d", "y");
+
+      expect(api.deleteSentence).toHaveBeenCalledWith(ownSentence);
+      expect(stripAnsi(lastFrame()!)).toContain("I have little time.");
+    });
+
+    it("keeps the sentence when the delete isn't confirmed", async () => {
+      vi.spyOn(api, "deleteSentence").mockResolvedValue();
+      vi.mocked(api.getRound).mockResolvedValue({ collection: { isEditable: true }, collectionClozeSentences: [{ ...sentence, url: "https://example.com/ccs/7" }], wordBank: [] });
       const { stdin } = renderPlay("multiple_choice");
       await settle();
-      await press(stdin, "c", RIGHT_ARROW, ENTER);
+      await press(stdin, "c", "d", "n");
 
-      expect(api.updateSentence).toHaveBeenCalledWith(expect.objectContaining({ sentence: expect.objectContaining({ text: "Tengo mucha {{hambre}}." }) }));
+      expect(api.deleteSentence).not.toHaveBeenCalled();
     });
 
     it("only offers the translation in a collection the user doesn't own", async () => {
@@ -471,6 +485,7 @@ describe("Play", () => {
 
       expect(stripAnsi(lastFrame()!)).toContain("Only the translation can be changed");
       expect(stripAnsi(lastFrame()!)).not.toContain("e edit sentence");
+      expect(stripAnsi(lastFrame()!)).not.toContain("d delete");
     });
 
     it("asks free users to upgrade", async () => {

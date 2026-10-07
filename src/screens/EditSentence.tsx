@@ -1,8 +1,7 @@
 import React, { useState } from "react";
 import { Box, Text, useInput } from "ink";
 import TextInput from "ink-text-input";
-import { isProSubscriber, ProRequiredError, updateSentence, type Sentence } from "../api.js";
-import { moveCloze } from "../cloze.js";
+import { deleteSentence, isProSubscriber, ProRequiredError, updateSentence, type Sentence } from "../api.js";
 import { ErrorMessage } from "../components/ErrorMessage.js";
 import { Hints } from "../components/Hints.js";
 import { Spinner } from "../components/Spinner.js";
@@ -15,6 +14,7 @@ type EditedField = "text" | "translation";
 type EditSentenceProps = {
   isTextEditable: boolean;
   onBack: () => void;
+  onDeleted: (sentence: Sentence) => void;
   onSaved: (sentence: Sentence) => void;
   sentence: Sentence;
   upsertUrl: string;
@@ -40,12 +40,14 @@ export function EditSentence(props: EditSentenceProps) {
   return <SentenceEditor {...props} />;
 }
 
-function SentenceEditor({ isTextEditable, onBack, onSaved, sentence, upsertUrl }: EditSentenceProps) {
+function SentenceEditor({ isTextEditable, onBack, onDeleted, onSaved, sentence, upsertUrl }: EditSentenceProps) {
   const [text, setText] = useState(sentence.text);
   const [translation, setTranslation] = useState(sentence.translation);
   const [editedField, setEditedField] = useState<EditedField>();
   const [isSaving, setIsSaving] = useState(false);
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [saveError, setSaveError] = useState<Error>();
+  const canDelete = isTextEditable && Boolean(sentence.url);
 
   async function save() {
     setIsSaving(true);
@@ -59,14 +61,29 @@ function SentenceEditor({ isTextEditable, onBack, onSaved, sentence, upsertUrl }
     }
   }
 
+  async function remove() {
+    setIsSaving(true);
+    try {
+      await deleteSentence(sentence);
+      onDeleted(sentence);
+    } catch (error) {
+      setSaveError(error as Error);
+      setIsSaving(false);
+    }
+  }
+
   useInput((input, key) => {
     if (key.escape) return onBack();
-    if (isTextEditable && key.leftArrow) setText((current) => moveCloze(current, -1));
-    if (isTextEditable && key.rightArrow) setText((current) => moveCloze(current, 1));
     if (isTextEditable && input === "e") setEditedField("text");
     if (input === "t") setEditedField("translation");
+    if (canDelete && input === "d") setIsConfirmingDelete(true);
     if (key.return) save();
-  }, { isActive: !editedField && !isSaving });
+  }, { isActive: !editedField && !isSaving && !isConfirmingDelete });
+
+  useInput((input) => {
+    if (input === "y") remove();
+    else setIsConfirmingDelete(false);
+  }, { isActive: isConfirmingDelete && !isSaving });
 
   useInput((_input, key) => {
     if (key.escape) setEditedField(undefined);
@@ -87,13 +104,14 @@ function SentenceEditor({ isTextEditable, onBack, onSaved, sentence, upsertUrl }
         )}
       </Box>
       {!isTextEditable && <Text dimColor>Only the translation can be changed: the sentence is in a collection you don't own.</Text>}
+      {isConfirmingDelete && !isSaving && <Text color={colors.danger}>Delete this sentence from the collection? y to delete, any other key to keep it</Text>}
       {isSaving && <Spinner label="Saving…" />}
       {saveError && <ErrorMessage error={saveError} />}
       <Hints
         hints={
           editedField
             ? ["enter done", "esc stop editing"]
-            : [...(isTextEditable ? ["←→ move the hidden word", "e edit sentence"] : []), "t edit translation", "enter save", "esc back"]
+            : [...(isTextEditable ? ["e edit sentence"] : []), "t edit translation", ...(canDelete ? ["d delete"] : []), "enter save", "esc back"]
         }
       />
     </Box>

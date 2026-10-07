@@ -274,6 +274,12 @@ function PlayRound({ choice, isTextEditable, mode, onMenu, onPlayAgain, onProgre
     setIsEditing(false);
   }
 
+  // Leaves the copies already played so the cards before this one stay where they are.
+  function removeDeletedSentence(deleted: Sentence) {
+    setDeck((current) => current.filter((card, position) => position < index || card.id !== deleted.id));
+    setIsEditing(false);
+  }
+
   function goToNextSentence() {
     stopAudio();
     setAnswered(undefined);
@@ -299,7 +305,7 @@ function PlayRound({ choice, isTextEditable, mode, onMenu, onPlayAgain, onProgre
 
   if (isShowingSettings) return <SettingsScreen onBack={() => setIsShowingSettings(false)} />;
   if (isEditing && upsertUrl) {
-    return <EditSentence isTextEditable={isTextEditable} onBack={() => setIsEditing(false)} onSaved={showEditedSentence} sentence={sentence} upsertUrl={upsertUrl} />;
+    return <EditSentence isTextEditable={isTextEditable} onBack={() => setIsEditing(false)} onDeleted={removeDeletedSentence} onSaved={showEditedSentence} sentence={sentence} upsertUrl={upsertUrl} />;
   }
 
   return (

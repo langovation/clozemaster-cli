@@ -64,6 +64,7 @@ export type Sentence = {
   translation: string;
   ttsAudioUrl?: string | null;
   ttsUrl?: string;
+  url?: string;
 };
 
 export type Round = {
@@ -314,6 +315,11 @@ export async function saveAnswer({
 // The server only changes the text in the user's own collections; elsewhere just their translation is kept.
 export async function updateSentence({ sentence, upsertUrl }: { sentence: Sentence; upsertUrl: string }): Promise<void> {
   await request(upsertUrl, { body: { updates: [{ id: sentence.id, text: sentence.text, translation: sentence.translation }] }, method: "POST" });
+}
+
+export async function deleteSentence(sentence: Sentence): Promise<void> {
+  if (!sentence.url) throw new Error("this sentence can't be deleted.");
+  await request(sentence.url, { method: "DELETE" });
 }
 
 export async function markSentenceKnown({ sentence, upsertUrl }: { sentence: Sentence; upsertUrl: string }): Promise<void> {
