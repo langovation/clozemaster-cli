@@ -23,7 +23,7 @@ export function Select<T>({ items, onSelect }: { items: SelectItem<T>[]; onSelec
       {visibleItems.map((item, offset) => {
         const isHighlighted = firstVisible + offset === highlighted;
         return (
-          <Box key={item.label} justifyContent="space-between" gap={2}>
+          <Box key={firstVisible + offset} justifyContent="space-between" gap={2}>
             <Text color={isHighlighted ? colors.brand : undefined} wrap="truncate-end">
               {isHighlighted ? "❯ " : "  "}
               {item.label}

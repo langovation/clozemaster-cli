@@ -67,7 +67,7 @@ export function multipleChoiceOptions(sentence: Sentence, wordBank: string[]): s
   const check = { strictAccents: true };
   const distractors = (sentence.multipleChoiceOptions?.length ? sentence.multipleChoiceOptions : wordBank)
     .filter((option) => normalize(option, check) !== normalize(cloze, check));
-  return shuffle([cloze, ...shuffle(distractors).slice(0, 3)]);
+  return shuffle([cloze, ...shuffle([...new Set(distractors)]).slice(0, 3)]);
 }
 
 export const MASTERED_LEVEL = 4;

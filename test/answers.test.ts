@@ -65,6 +65,11 @@ describe("lettersOff", () => {
 });
 
 describe("multipleChoiceOptions", () => {
+  it("never offers the same distractor twice", () => {
+    const options = multipleChoiceOptions({ ...sentence, multipleChoiceOptions: [] }, ["uno", "uno", "uno", "dos"]);
+    expect(options.filter((option) => option === "uno")).toHaveLength(1);
+  });
+
   it("offers the answer plus three distractors", () => {
     const options = multipleChoiceOptions(sentence, []);
     expect(options).toHaveLength(4);

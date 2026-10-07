@@ -10,7 +10,7 @@ export function MultipleChoiceAnswer({ onAnswer, options }: { onAnswer: (answer:
   return (
     <Box gap={3} flexWrap="wrap">
       {options.map((option, index) => (
-        <Text key={option}>
+        <Text key={index}>
           <Text color={colors.brand} bold>{index + 1}</Text> {option}
         </Text>
       ))}
