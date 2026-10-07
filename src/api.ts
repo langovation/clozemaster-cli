@@ -13,6 +13,7 @@ export type LanguagePairing = {
 export type Collection = {
   id: number;
   collectionClozeSentencesAnswerUrl: string;
+  collectionClozeSentencesUpsertUrl: string;
   dashboardCollection: boolean;
   name: string;
   numMastered: number;
@@ -52,6 +53,7 @@ export type Sentence = {
   structuredExplanation?: StructuredExplanation | null;
   alternativeAnswers: string[];
   collectionClozeSentencesAnswerUrl?: string;
+  collectionClozeSentencesUpsertUrl?: string;
   hint?: string | null;
   level: number | null;
   multipleChoiceOptions: string[] | null;
@@ -269,6 +271,11 @@ export async function saveAnswer({
     },
     method: "PUT",
   });
+}
+
+// The apps' "Known": fully mastered and never reviewed again.
+export async function markSentenceKnown({ sentence, upsertUrl }: { sentence: Sentence; upsertUrl: string }): Promise<void> {
+  await request(upsertUrl, { body: { updates: [{ id: sentence.id, level: 4, next_review: "2100-01-01" }] }, method: "POST" });
 }
 
 type ExplanationJob = {

@@ -12,7 +12,7 @@ import { FLAME } from "../sprites.js";
 import { colors } from "../theme.js";
 import { useRequest } from "../useRequest.js";
 
-export type RoundChoice = { answerUrl?: string; playDataUrl: string; scope?: string; title: string };
+export type RoundChoice = { answerUrl?: string; playDataUrl: string; scope?: string; title: string; upsertUrl?: string };
 
 const BROWSE = "browse";
 
@@ -35,7 +35,12 @@ function reviewChoice(pairing: LanguagePairing, collections: Collection[]): Sele
 }
 
 export function collectionRoundChoice(collection: Collection): RoundChoice {
-  return { answerUrl: collection.collectionClozeSentencesAnswerUrl, playDataUrl: collection.playDataUrl, title: collection.name };
+  return {
+    answerUrl: collection.collectionClozeSentencesAnswerUrl,
+    playDataUrl: collection.playDataUrl,
+    title: collection.name,
+    upsertUrl: collection.collectionClozeSentencesUpsertUrl,
+  };
 }
 
 function collectionChoice(collection: Collection): SelectItem<RoundChoice> {

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Box, Text, useInput } from "ink";
-import { getRound, isTypedMode, saveAnswer, type AnswerResult, type PlayMode, type Sentence } from "../api.js";
+import { getRound, isTypedMode, markSentenceKnown, saveAnswer, type AnswerResult, type PlayMode, type Sentence } from "../api.js";
 import { playSentenceAudio, playSoundEffect, preloadSentenceAudio, stopAudio } from "../audio.js";
 import { isCorrectAnswer, multipleChoiceOptions, pointsFor, splitCloze } from "../answers.js";
 import { canExplain, ExplanationPanel } from "../components/ExplanationPanel.js";
@@ -177,6 +177,19 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode
     if (isCorrect && settings.soundEffects) playSoundEffect("correct");
   }
 
+  async function markKnown() {
+    savePendingGrade();
+    setResults((previous) => [...previous, { answer: "", isCorrect: true, points: 0, sentence, usedHint: false }]);
+    goToNextSentence();
+    try {
+      const upsertUrl = sentence.collectionClozeSentencesUpsertUrl || choice.upsertUrl;
+      if (!upsertUrl) throw new Error("this round doesn't say which collection the sentence is in.");
+      await markSentenceKnown({ sentence, upsertUrl });
+    } catch (error) {
+      setSaveError(error as Error);
+    }
+  }
+
   function goBackToPreviousCard() {
     const previous = pendingGrade.current;
     if (!previous) return;
@@ -270,7 +283,7 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode
       {!answered && mode === "multiple_choice" && <MultipleChoiceAnswer onAnswer={answer} options={options} />}
       {!answered && isTypedMode(mode) && <TextAnswer key={index} hasUsedHint={hasUsedHint} onAnswer={answer} onHint={() => setHasUsedHint(true)} sentence={sentence} />}
       {!answered && mode === "flashcard" && (
-        <FlashcardAnswer isRevealed={isRevealed} onGrade={gradeFlashcard} onReveal={() => setIsRevealed(true)} />
+        <FlashcardAnswer isRevealed={isRevealed} onGrade={gradeFlashcard} onKnown={markKnown} onReveal={() => setIsRevealed(true)} />
       )}
       {saveError && <Text color={colors.danger}>Couldn't save an answer: {saveError.message}</Text>}
       <Hints

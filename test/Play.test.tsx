@@ -22,7 +22,7 @@ const sentence: api.Sentence = {
   translation: "I'm very hungry.",
 };
 
-const choice = { playDataUrl: "https://example.com/play", title: "Core 1,000 Collection" };
+const choice = { playDataUrl: "https://example.com/play", title: "Core 1,000 Collection", upsertUrl: "https://example.com/upsert" };
 
 const progress = { currentStreakDays: 12, dailyGoalPointsPerDay: 100, level: 7, numPointsToday: 40, score: 900 };
 
@@ -171,6 +171,19 @@ describe("Play", () => {
     await press(stdin, " ", "2");
     expect(api.saveAnswer).toHaveBeenCalledWith(expect.objectContaining({ correct: true, usedHint: true }));
     expect(stripAnsi(lastFrame()!)).toContain("+2 points");
+  });
+
+  it("marks a revealed flashcard as known without grading it", async () => {
+    vi.spyOn(api, "markSentenceKnown").mockResolvedValue();
+    const { lastFrame, stdin } = renderPlay("flashcard");
+    await settle();
+    await press(stdin, " ");
+    expect(stripAnsi(lastFrame()!)).toContain("k Known");
+
+    await press(stdin, "k");
+    expect(api.markSentenceKnown).toHaveBeenCalledWith({ sentence, upsertUrl: "https://example.com/upsert" });
+    expect(api.saveAnswer).not.toHaveBeenCalled();
+    expect(stripAnsi(lastFrame()!)).toContain("Round complete!");
   });
 
   it("goes back to the previous flashcard and only saves the final grade", async () => {
