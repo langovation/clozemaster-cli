@@ -1,6 +1,6 @@
 # Clozemaster CLI
 
-Play [Clozemaster](https://www.clozemaster.com) in your terminal: multiple choice or text input, with pixel art.
+Play [Clozemaster](https://www.clozemaster.com) in your terminal: multiple choice, text input, listening or flashcards, with pixel art.
 
 ## Before launch
 
@@ -60,7 +60,7 @@ Keep that cookie private; it's your login.
 | `clozemaster login` | Log in again with your browser |
 | `clozemaster logout` | Forget your login on this machine |
 
-While playing: `1`-`4` picks an answer, `→` gives a hint in text input, `tab` switches answer mode, `esc` goes back to the menu. Press `f` on the menus to email feedback to support@clozemaster.com.
+While playing: `1`-`4` picks an answer, `→` gives one hint per sentence, `tab` switches answer mode, `p` replays the audio, `e` explains the sentence, `s` opens settings and `esc` goes back to the menu. In flashcards, `space` reveals, then `1` again, `2` good or `k` known. Press `c` on the menu for Quick Capture and `f` to email feedback to support@clozemaster.com.
 
 ## Development
 
@@ -69,7 +69,8 @@ npm install
 npm run dev          # run from source
 npm test
 npm run build        # bundles to dist/cli.js
-npm link             # puts `clozemaster` on your PATH
+npm link             # after a build, puts `clozemaster` on your PATH
+npm run install:local  # builds the executable and installs it to ~/.local/bin
 ```
 
 Environment variables:

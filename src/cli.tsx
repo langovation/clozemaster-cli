@@ -32,6 +32,8 @@ if (command === "help" || command === "--help" || command === "-h") {
 } else if (command === "logout") {
   clearLogin();
   console.log(`Logged out of ${baseUrl}.`);
+  const loginVariables = ["CLOZEMASTER_TOKEN", "CLOZEMASTER_COOKIE"].filter((name) => process.env[name]);
+  if (loginVariables.length) console.log(`${loginVariables.join(" and ")} still logs you in until you unset it.`);
 } else if (command === undefined || command === "login") {
   runFullScreen(<App forceLogin={command === "login"} />);
 } else {
