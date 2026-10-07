@@ -64,7 +64,7 @@ export function ImportQuickCapture({ entries, onBack, onImported, pairing }: Imp
     if (name.trim()) importInto(() => createCollection(pairing, name.trim()));
   }
 
-  const title = `Import ${entries.length} ${entries.length === 1 ? "word" : "words"}`;
+  const title = `Import all ${entries.length} ${entries.length === 1 ? "word" : "words"} into a ${pairing.targetLanguageName} collection`;
   if (isLoading) return <Spinner label="Loading your collections…" />;
   if (error) return <ErrorMessage error={error} />;
   if (!data?.isPro) {
@@ -89,7 +89,7 @@ export function ImportQuickCapture({ entries, onBack, onImported, pairing }: Imp
       )}
       {!isImporting && !isNaming && (
         <Box flexDirection="column">
-          <Text bold>Which collection?</Text>
+          <Text dimColor>Pick one of your collections or make a new one. It gets pinned to your dashboard.</Text>
           <Select
             items={[
               ...data.collections.map((collection) => ({ label: collection.name, value: collection as OwnCollection | typeof NEW_COLLECTION })),

@@ -85,26 +85,25 @@ describe("Quick Capture", () => {
     expect(server.quickCaptureEntries()[0]).toMatchObject({ sentence: "Veo un gato {{aquí}}.", sentenceTranslation: "I see a gato here. Mine." });
   });
 
-  it("imports the selected words into a picked collection", async () => {
+  it("imports all words into a picked collection", async () => {
     const { lastFrame, stdin } = await openQuickCapture();
-    await press(stdin, "gato", ENTER, "perro", ENTER, "casa", ENTER);
-    await waitForText(lastFrame, "gato (translated)");
-    await press(stdin, TAB, " ", DOWN, DOWN, " ", "i");
-    await waitForText(lastFrame, "Import 2 words");
+    await press(stdin, "gato", ENTER, "perro", ENTER);
+    await waitForText(lastFrame, "perro (translated)");
+    await press(stdin, TAB, "i");
+    await waitForText(lastFrame, "Import all 2 words into a Español collection");
     await press(stdin, DOWN, ENTER);
     await waitForText(lastFrame, "Importing 2 into Travel");
 
-    expect(server.imports()).toEqual([{ collection_id: 6, pin_to_dashboard: true, quick_capture_entry_ids: ["3", "1"] }]);
-    expect(lastFrame()).toContain("perro");
-    expect(lastFrame()).not.toContain("gato");
+    expect(server.imports()).toEqual([{ collection_id: 6, pin_to_dashboard: true, quick_capture_entry_ids: ["2", "1"] }]);
+    expect(lastFrame()).toContain("Nothing captured yet.");
   });
 
-  it("imports the highlighted word into a new collection", async () => {
+  it("imports all words into a new collection", async () => {
     const { lastFrame, stdin } = await openQuickCapture();
     await press(stdin, "gato", ENTER);
     await waitForText(lastFrame, "gato (translated)");
     await press(stdin, TAB, "i");
-    await waitForText(lastFrame, "Import 1 word");
+    await waitForText(lastFrame, "Import all 1 word");
     await press(stdin, DOWN, DOWN, ENTER, "Animals", ENTER);
     await waitForText(lastFrame, "Importing 1 into Animals");
 

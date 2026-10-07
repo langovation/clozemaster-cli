@@ -34,7 +34,6 @@ export function QuickCapture({ onBack, pairing }: QuickCaptureProps) {
   const [text, setText] = useState("");
   const [isListFocused, setIsListFocused] = useState(false);
   const [highlighted, setHighlighted] = useState(0);
-  const [selectedIds, setSelectedIds] = useState(new Set<string>());
   const [entriesToImport, setEntriesToImport] = useState<QuickCaptureEntry[]>();
   const [importNotice, setImportNotice] = useState<string>();
   const [editedEntry, setEditedEntry] = useState<QuickCaptureEntry>();
@@ -90,25 +89,10 @@ export function QuickCapture({ onBack, pairing }: QuickCaptureProps) {
     }
   }
 
-  function toggleSelected(entry: QuickCaptureEntry) {
-    setSelectedIds((current) => {
-      const next = new Set(current);
-      if (!next.delete(entry.id)) next.add(entry.id);
-      return next;
-    });
-  }
-
-  // Imports the ticked words, or the highlighted one when none are ticked.
-  function startImport(list: QuickCaptureEntry[]) {
-    const selected = list.filter((entry) => selectedIds.has(entry.id));
-    setEntriesToImport(selected.length ? selected : [list[highlighted]]);
-  }
-
   function finishImport(collection: OwnCollection) {
     const importedIds = new Set(entriesToImport!.map((entry) => entry.id));
     const remaining = (entries || []).filter((entry) => !importedIds.has(entry.id));
     setEntries(remaining);
-    setSelectedIds(new Set());
     setHighlighted(0);
     setIsListFocused(remaining.length > 0);
     setImportNotice(`Importing ${importedIds.size} into ${collection.name}. They'll show up there in a minute.`);
@@ -128,8 +112,7 @@ export function QuickCapture({ onBack, pairing }: QuickCaptureProps) {
     if (key.upArrow) setHighlighted((index) => (index - 1 + entries.length) % entries.length);
     if (key.downArrow) setHighlighted((index) => (index + 1) % entries.length);
     if (input === "d") deleteHighlightedEntry(entries);
-    if (input === " ") toggleSelected(entries[highlighted]);
-    if (input === "i") startImport(entries);
+    if (input === "i") setEntriesToImport(entries);
     if (key.return) setEditedEntry(entries[highlighted]);
   }, { isActive: !entriesToImport && !editedEntry });
 
@@ -162,7 +145,6 @@ export function QuickCapture({ onBack, pairing }: QuickCaptureProps) {
                 <Box justifyContent="space-between" gap={2}>
                   <Text color={isHighlighted ? colors.brand : undefined} wrap="truncate-end">
                     {isHighlighted ? "❯ " : "  "}
-                    {selectedIds.has(entry.id) ? "◉ " : "○ "}
                     {entry.text}
                   </Text>
                   <Box flexShrink={0}>
@@ -182,7 +164,7 @@ export function QuickCapture({ onBack, pairing }: QuickCaptureProps) {
           })}
         </Box>
       )}
-      <Hints hints={isListFocused ? ["↑↓ to move", "enter edit sentence", "space select", "i import", "d delete", "tab to type", "esc back"] : ["enter to save", "tab to pick a word", "esc back"]} />
+      <Hints hints={isListFocused ? ["↑↓ to move", "enter edit sentence", "i import all", "d delete", "tab to type", "esc back"] : ["enter to save", "tab to pick a word", "esc back"]} />
     </Box>
   );
 }
