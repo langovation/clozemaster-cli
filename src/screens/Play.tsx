@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Box, Text, useInput } from "ink";
 import { getRound, isTypedMode, saveAnswer, type AnswerResult, type PlayMode, type Sentence } from "../api.js";
-import { playSentenceAudio, stopAudio } from "../audio.js";
+import { playSentenceAudio, preloadSentenceAudio, stopAudio } from "../audio.js";
 import { isCorrectAnswer, multipleChoiceOptions, pointsFor } from "../answers.js";
 import { canExplain, ExplanationPanel } from "../components/ExplanationPanel.js";
 import { FlashcardAnswer } from "../components/FlashcardAnswer.js";
@@ -117,6 +117,12 @@ function PlayRound({ choice, mode, onMenu, onPlayAgain, onProgress, onToggleMode
   const isExplainable = Boolean(sentence && isDone && canExplain(sentence));
   const canPlayAudio = Boolean(sentence && isDone && (mode === "listening" || settings.audio));
   const canOpenSettings = !isTypedMode(mode) || Boolean(answered);
+
+  // So the audio plays straight away once the card flips.
+  useEffect(() => {
+    if (mode !== "listening" && !settings.audio) return;
+    [deck[index], deck[index + 1]].forEach((upcoming) => upcoming && preloadSentenceAudio(upcoming));
+  }, [sentence]);
 
   // Like the web's listening skill: the sentence stays hidden until its audio has played once.
   useEffect(() => {

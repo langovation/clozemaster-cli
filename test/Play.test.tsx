@@ -4,7 +4,7 @@ import React from "react";
 import { render } from "ink-testing-library";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../src/api.js";
-import { playSentenceAudio } from "../src/audio.js";
+import { playSentenceAudio, preloadSentenceAudio } from "../src/audio.js";
 import { configDirectory } from "../src/config.js";
 import { Play } from "../src/screens/Play.js";
 import { saveSettings, DEFAULT_SETTINGS, type Settings } from "../src/settings.js";
@@ -35,7 +35,7 @@ function renderPlay(mode: api.PlayMode, settings: Partial<Settings> = {}) {
   );
 }
 
-vi.mock("../src/audio.js", () => ({ playSentenceAudio: vi.fn(), stopAudio: vi.fn() }));
+vi.mock("../src/audio.js", () => ({ playSentenceAudio: vi.fn(), preloadSentenceAudio: vi.fn(), stopAudio: vi.fn() }));
 
 describe("Play", () => {
   beforeEach(() => {
@@ -246,6 +246,15 @@ describe("Play", () => {
 
     await press(stdin, "p");
     expect(playSentenceAudio).toHaveBeenCalledTimes(2);
+  });
+
+  it("downloads the sentence's audio before it's answered", async () => {
+    vi.mocked(preloadSentenceAudio).mockClear();
+    renderPlay("text_input");
+    await settle();
+
+    expect(preloadSentenceAudio).toHaveBeenCalledWith(sentence);
+    expect(playSentenceAudio).not.toHaveBeenCalled();
   });
 
   it("plays a flashcard's sentence once it's revealed", async () => {

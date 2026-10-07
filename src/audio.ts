@@ -16,8 +16,23 @@ const PLAYERS: { args: string[]; command: string }[] =
 const cacheDirectory = path.join(os.tmpdir(), "clozemaster-audio");
 let currentPlayback: ChildProcess | undefined;
 let latestRequest = 0;
+const downloads = new Map<number, Promise<string | undefined>>();
 
-async function downloadAudio(sentence: Sentence): Promise<string | undefined> {
+// Shared so playing a sentence that's already downloading waits for that download instead of starting another.
+function downloadAudio(sentence: Sentence): Promise<string | undefined> {
+  if (!downloads.has(sentence.id)) {
+    const download = fetchAudio(sentence).catch(() => undefined);
+    downloads.set(sentence.id, download);
+    download.then((audioPath) => audioPath || downloads.delete(sentence.id));
+  }
+  return downloads.get(sentence.id)!;
+}
+
+export function preloadSentenceAudio(sentence: Sentence) {
+  downloadAudio(sentence);
+}
+
+async function fetchAudio(sentence: Sentence): Promise<string | undefined> {
   const audioPath = path.join(cacheDirectory, `${sentence.id}.mp3`);
   if (fs.existsSync(audioPath)) return audioPath;
   const audioUrl = await getSentenceAudioUrl(sentence);
