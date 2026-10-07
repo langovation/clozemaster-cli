@@ -24,6 +24,7 @@ const ROWS: SettingRow[] = [
   { description: "an answer missing an accent is wrong", key: "strictAccents", label: "Strict accents", values: [true, false] },
   { description: "when to show the translation", key: "translation", label: "Translation", values: ["visible", "after", "hidden"] },
   { description: "show the sentence's hint before answering", key: "hints", label: "Hints", values: [true, false] },
+  { description: "show the sentence's mastery checkmarks before answering too", key: "masteryBeforeAnswering", label: "Mastery before answering", values: [true, false] },
   { description: "show pronunciation after answering", key: "pronunciation", label: "Pronunciation", values: [true, false] },
   { description: "play the sentence out loud after answering, p to replay", key: "audio", label: "Audio", values: [true, false] },
   { description: "a chime for a right answer and a finished round", key: "soundEffects", label: "Sound effects", values: [true, false] },

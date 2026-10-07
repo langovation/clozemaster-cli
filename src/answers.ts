@@ -70,10 +70,17 @@ export function multipleChoiceOptions(sentence: Sentence, wordBank: string[]): s
   return shuffle([cloze, ...shuffle(distractors).slice(0, 3)]);
 }
 
+export const MASTERED_LEVEL = 4;
+
+// Like the apps: a right answer moves the sentence up a level, a miss sends it back to 0.
+export function levelAfterAnswer({ correct, sentence }: { correct: boolean; sentence: Sentence }): number {
+  return correct ? Math.min((sentence.level || 0) + 1, MASTERED_LEVEL) : 0;
+}
+
 // Same formula as the apps, for display only; the server works out the real score.
 export function pointsFor({ correct, mode, sentence, usedHint = false }: { correct: boolean; mode: PlayMode; sentence: Sentence; usedHint?: boolean }) {
   if (!correct) return 0;
-  const newLevel = Math.min((sentence.level || 0) + 1, 4);
+  const newLevel = levelAfterAnswer({ correct, sentence });
   let points = newLevel * (isTypedMode(mode) ? 8 : 4);
   if (usedHint) points /= 2;
   if (sentence.nextReview !== null && new Date(sentence.nextReview) > new Date()) points /= 2;

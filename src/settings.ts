@@ -7,6 +7,7 @@ export type TranslationVisibility = "visible" | "after" | "hidden";
 export type Settings = {
   audio: boolean;
   hints: boolean;
+  masteryBeforeAnswering: boolean;
   pronunciation: boolean;
   soundEffects: boolean;
   spellingHints: boolean;
@@ -19,6 +20,7 @@ export type Settings = {
 export const DEFAULT_SETTINGS: Settings = {
   audio: true,
   hints: true,
+  masteryBeforeAnswering: false,
   pronunciation: true,
   soundEffects: true,
   spellingHints: true,

@@ -1,7 +1,7 @@
 import React from "react";
 import { Box, Text } from "ink";
 import type { Sentence } from "../api.js";
-import { splitCloze } from "../answers.js";
+import { levelAfterAnswer, MASTERED_LEVEL, splitCloze } from "../answers.js";
 import { useSettings } from "../SettingsContext.js";
 import { colors } from "../theme.js";
 
@@ -15,6 +15,17 @@ function Blank({ answered, cloze, hintedLetters = "", isRevealed }: { answered?:
   return <Text color={colors.brand}>{hintedLetters}{"_".repeat(Math.max(cloze.length - hintedLetters.length, 3 - hintedLetters.length, 0))}</Text>;
 }
 
+function MasteryChecks({ level }: { level: number }) {
+  return (
+    <Text>
+      {Array.from({ length: MASTERED_LEVEL }, (_, index) => (
+        <Text key={index} color={index < level ? colors.brand : colors.subtle}>✔ </Text>
+      ))}
+      <Text dimColor>{level * 25}% mastered</Text>
+    </Text>
+  );
+}
+
 export function SentenceCard({ answered, hintedLetters, isRevealed, sentence }: SentenceCardProps) {
   const { settings } = useSettings();
   const { after, before, cloze } = splitCloze(sentence.text);
@@ -24,6 +35,9 @@ export function SentenceCard({ answered, hintedLetters, isRevealed, sentence }: 
   return (
     <Box flexDirection="column">
       <Box borderStyle="round" borderColor={colors.subtle} flexDirection="column" paddingX={1}>
+        {(answered || settings.masteryBeforeAnswering) && (
+          <MasteryChecks level={answered ? levelAfterAnswer({ correct: answered.isCorrect, sentence }) : sentence.level || 0} />
+        )}
         {settings.hints && !isDone && sentence.hint && <Text color={colors.gold}>hint: {sentence.hint}</Text>}
         <Text>
           {before}

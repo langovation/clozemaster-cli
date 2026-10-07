@@ -74,6 +74,32 @@ describe("Play", () => {
     expect(stripAnsi(lastFrame()!)).not.toContain("answer was");
   });
 
+  it("shows the sentence's mastery after answering", async () => {
+    vi.mocked(api.getRound).mockResolvedValue({ collectionClozeSentences: [{ ...sentence, level: 2 }], wordBank: [] });
+    const { lastFrame, stdin } = renderPlay("text_input");
+    await settle();
+    expect(stripAnsi(lastFrame()!)).not.toContain("mastered");
+
+    await press(stdin, "mucha", ENTER);
+    expect(stripAnsi(lastFrame()!)).toContain("✔ ✔ ✔ ✔ 75% mastered");
+    expect(showsInColor(lastFrame()!, "✔ ✔ ✔ ", "brand")).toBe(true);
+  });
+
+  it("resets mastery to nothing on a miss", async () => {
+    vi.mocked(api.getRound).mockResolvedValue({ collectionClozeSentences: [{ ...sentence, level: 3 }], wordBank: [] });
+    const { lastFrame, stdin } = renderPlay("text_input");
+    await settle();
+    await press(stdin, "poco", ENTER);
+    expect(stripAnsi(lastFrame()!)).toContain("0% mastered");
+  });
+
+  it("shows mastery before answering with that setting on", async () => {
+    vi.mocked(api.getRound).mockResolvedValue({ collectionClozeSentences: [{ ...sentence, level: 1 }], wordBank: [] });
+    const { lastFrame } = renderPlay("text_input", { masteryBeforeAnswering: true });
+    await settle();
+    expect(stripAnsi(lastFrame()!)).toContain("25% mastered");
+  });
+
   it("sends a missed sentence to the back of the round", async () => {
     const { lastFrame, stdin } = renderPlay("text_input");
     await settle();
