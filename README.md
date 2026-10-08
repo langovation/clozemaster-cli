@@ -40,9 +40,9 @@ npm run dev
 
 1. Bump `version` in `package.json` and commit it.
 2. Tag the commit and push the tag: `git tag v0.2.0 && git push origin v0.2.0`. The release workflow (`.github/workflows/release.yml`) runs the tests, builds an executable for each platform with `npm run build:binary -- --all`, and publishes them with `SHA256SUMS` as the latest GitHub release. `install.sh` always downloads from the latest release.
-3. Once the release has its assets, set `public/cli-version.txt` in the web repo to the new version. Every CLI reads that file on launch and, if it's older, tells the user to rerun the install line, so it goes last.
+3. Once the release has its assets, set `lib/cli/cli-version.txt` in the web repo to the new version. Every CLI reads that file on launch and, if it's older, tells the user to rerun the install line, so it goes last.
 
-The copy of `install.sh` served at clozemaster.com lives in the web repo at `public/install-cli.sh`.
+The copy of `install.sh` served at clozemaster.com lives in the web repo at `lib/cli/install-cli.sh`.
 
 ## Commands
 
