@@ -2,16 +2,6 @@
 
 Play [Clozemaster](https://www.clozemaster.com) in your terminal: multiple choice, text input, listening or flashcards, with pixel art.
 
-## Before launch
-
-The install line below doesn't work yet. Still to do:
-
-1. Make this repo public. GitHub blocks release downloads from private repos (#2).
-2. Publish release `v0.1.0` with the files from `npm run build:binary -- --all`: `clozemaster-darwin-arm64`, `clozemaster-darwin-x64`, `clozemaster-linux-x64`, `clozemaster-linux-arm64` and `SHA256SUMS`.
-3. Run the install line on Linux x64, Linux ARM and an Intel Mac.
-
-Remove this section once all three are done.
-
 ## Install
 
 Like `claude`, one line installs a `clozemaster` command on macOS or Linux:
@@ -41,16 +31,6 @@ npm run dev
 4. In the web repo, set `public/cli-version.txt` to the new version. Every CLI reads that file on launch and, if it's older, tells the user to rerun the install line.
 
 The copy of `install.sh` served at clozemaster.com lives in the web repo at `public/install-cli.sh`.
-
-**Temporary:** browser login isn't live yet. For now, log in on clozemaster.com, copy your `_clozemaster_session` cookie from the browser's dev tools, and run:
-
-```sh
-CLOZEMASTER_COOKIE="_clozemaster_session=<your cookie>" npm run dev
-# or
-CLOZEMASTER_COOKIE="_clozemaster_session=<your cookie>" clozemaster
-```
-
-Keep that cookie private; it's your login.
 
 ## Commands
 
