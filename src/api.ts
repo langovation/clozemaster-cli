@@ -482,7 +482,6 @@ function localDateString(): string {
   return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
 }
 
-// Same as the mobile app: use the recorded audio, otherwise ask the server to generate it.
 export async function getSentenceAudioUrl(sentence: Sentence): Promise<string | undefined> {
   if (sentence.ttsAudioUrl) return sentence.ttsAudioUrl;
   if (!sentence.ttsUrl) return undefined;

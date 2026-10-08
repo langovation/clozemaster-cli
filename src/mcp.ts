@@ -133,7 +133,6 @@ async function findPairingAndCollection(ids: CollectionIds) {
   return { pairing, collection: await findOwnCollection(pairing, ids.collectionId) };
 }
 
-// Checked first because upserting an id the collection doesn't have creates a new sentence.
 async function findPairingAndCollectionWithSentence(ids: SentenceIds) {
   const { pairing, collection } = await findPairingAndCollection(ids);
   try {
