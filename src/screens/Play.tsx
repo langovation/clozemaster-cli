@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Box, Text, useInput } from "ink";
 import { getRound, isTypedMode, markSentenceKnown, saveAnswer, type AnswerResult, type PlayMode, type Sentence } from "../api.js";
-import { playSentenceAudio, playSoundEffect, preloadSentenceAudio, stopAudio } from "../audio.js";
+import { playSentenceAudio, playSentenceAudioAtHalfSpeed, playSoundEffect, preloadSentenceAudio, stopAudio } from "../audio.js";
 import { isCorrectAnswer, multipleChoiceOptions, pointsFor, splitCloze } from "../answers.js";
 import { canExplain, ExplanationPanel } from "../components/ExplanationPanel.js";
 import { FlashcardAnswer } from "../components/FlashcardAnswer.js";
@@ -164,6 +164,8 @@ function PlayRound({ choice, isTextEditable, mode, onMenu, onPlayAgain, onProgre
     if (input === "e" && isExplainable) setIsExplaining((current) => !current);
     if (input === "p" && isListening && !answered) listenToSentence();
     else if (input === "p" && canPlayAudio) playSentenceAudio(sentence);
+    if (input === "h" && isListening && !answered) listenToSentence(playSentenceAudioAtHalfSpeed);
+    else if (input === "h" && canPlayAudio) playSentenceAudioAtHalfSpeed(sentence);
     // Not once a flashcard is revealed, or the next mode would show the answer it asks for.
     if (key.tab && !answered && !isRevealed) onToggleMode();
     if (key.return && answered) goToNextSentence();
@@ -180,8 +182,8 @@ function PlayRound({ choice, isTextEditable, mode, onMenu, onPlayAgain, onProgre
   }
 
   // Only reveals when this sentence's audio finished, not when moving on or a replay cut it short.
-  async function listenToSentence() {
-    if (await playSentenceAudio(sentence)) {
+  async function listenToSentence(play = playSentenceAudio) {
+    if (await play(sentence)) {
       setIsListening(false);
       shownAt.current = Date.now();
     }
@@ -325,13 +327,13 @@ function PlayRound({ choice, isTextEditable, mode, onMenu, onPlayAgain, onProgre
       <Hints
         hints={
           isListening && !answered
-            ? ["p replay", "esc back"]
+            ? ["p replay", "h half speed", "esc back"]
             : answered
-            ? ["enter to continue", ...(canPlayAudio ? ["p replay"] : []), ...(isExplainable ? [isExplaining ? "e hide explanation" : "e explain"] : []), "s settings", ...(upsertUrl ? ["c edit card"] : []), "esc back"]
+            ? ["enter to continue", ...(canPlayAudio ? ["p replay", "h half speed"] : []), ...(isExplainable ? [isExplaining ? "e hide explanation" : "e explain"] : []), "s settings", ...(upsertUrl ? ["c edit card"] : []), "esc back"]
             : [
                 ...((isTypedMode(mode) || (mode === "flashcard" && !isRevealed)) && !hasUsedHint ? ["→ hint"] : []),
                 ...(isRevealed ? [] : [ANSWER_HINTS[mode]]),
-                ...(isRevealed && canPlayAudio ? ["p replay"] : []),
+                ...(isRevealed && canPlayAudio ? ["p replay", "h half speed"] : []),
                 ...(isExplainable ? ["e explain"] : []),
                 ...(canGoBack ? ["b previous card"] : []),
                 ...(isRevealed ? [] : [`tab: ${MODE_LABELS[nextMode(mode)].toLowerCase()}`]),

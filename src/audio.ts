@@ -14,6 +14,15 @@ const PLAYERS: { args: string[]; command: string }[] =
         { args: ["--no-video", "--really-quiet"], command: "mpv" },
       ];
 
+// Same players at half speed, keeping the pitch. mpg123 can't, so it isn't one.
+const HALF_SPEED_PLAYERS: { args: string[]; command: string }[] =
+  process.platform === "darwin"
+    ? [{ args: ["-r", "0.5", "-q", "1"], command: "afplay" }]
+    : [
+        { args: ["-nodisp", "-autoexit", "-loglevel", "quiet", "-af", "atempo=0.5"], command: "ffplay" },
+        { args: ["--no-video", "--really-quiet", "--speed=0.5"], command: "mpv" },
+      ];
+
 // Per user rather than the shared temp dir, so nobody else on the machine can plant files in it.
 const cacheDirectory = path.join(process.env.XDG_CACHE_HOME || path.join(os.homedir(), ".cache"), "clozemaster", "audio");
 let currentPlayback: ChildProcess | undefined;
@@ -84,12 +93,20 @@ export async function playSoundEffect(soundEffect: SoundEffect): Promise<boolean
 }
 
 // Resolves true once the sentence has played (or couldn't be), false if something else stopped it.
-export async function playSentenceAudio(sentence: Sentence): Promise<boolean> {
+export function playSentenceAudio(sentence: Sentence): Promise<boolean> {
+  return playSentenceWith(sentence, PLAYERS);
+}
+
+export function playSentenceAudioAtHalfSpeed(sentence: Sentence): Promise<boolean> {
+  return playSentenceWith(sentence, HALF_SPEED_PLAYERS);
+}
+
+async function playSentenceWith(sentence: Sentence, players: typeof PLAYERS): Promise<boolean> {
   stopAudio();
   const request = latestRequest;
   try {
     const audioPath = await downloadAudio(sentence);
-    if (audioPath && request === latestRequest) await playFile(audioPath);
+    if (audioPath && request === latestRequest) await playFile(audioPath, players);
   } catch {}
   return request === latestRequest;
 }

@@ -4,7 +4,7 @@ import React from "react";
 import { render } from "ink-testing-library";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../src/api.js";
-import { playSentenceAudio, playSoundEffect, preloadSentenceAudio } from "../src/audio.js";
+import { playSentenceAudio, playSentenceAudioAtHalfSpeed, playSoundEffect, preloadSentenceAudio } from "../src/audio.js";
 import { configDirectory } from "../src/config.js";
 import { Play } from "../src/screens/Play.js";
 import { saveSettings, DEFAULT_SETTINGS, type Settings } from "../src/settings.js";
@@ -35,12 +35,13 @@ function renderPlay(mode: api.PlayMode, settings: Partial<Settings> = {}, onTogg
   );
 }
 
-vi.mock("../src/audio.js", () => ({ playSentenceAudio: vi.fn(async () => true), playSoundEffect: vi.fn(async () => true), preloadSentenceAudio: vi.fn(), stopAudio: vi.fn() }));
+vi.mock("../src/audio.js", () => ({ playSentenceAudio: vi.fn(async () => true), playSentenceAudioAtHalfSpeed: vi.fn(async () => true), playSoundEffect: vi.fn(async () => true), preloadSentenceAudio: vi.fn(), stopAudio: vi.fn() }));
 
 describe("Play", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.mocked(playSentenceAudio).mockClear();
+    vi.mocked(playSentenceAudioAtHalfSpeed).mockClear();
     vi.mocked(playSoundEffect).mockClear();
     fs.rmSync(path.join(configDirectory, "settings.json"), { force: true });
     vi.spyOn(api, "getRound").mockResolvedValue({ collectionClozeSentences: [sentence], wordBank: [] });
@@ -332,6 +333,27 @@ describe("Play", () => {
 
     await press(stdin, "p");
     expect(playSentenceAudio).toHaveBeenCalledTimes(2);
+  });
+
+  it("replays the sentence at half speed with h", async () => {
+    const { lastFrame, stdin } = renderPlay("text_input");
+    await settle();
+    await press(stdin, "mucha", ENTER);
+    expect(stripAnsi(lastFrame()!)).toContain("h half speed");
+
+    await press(stdin, "h");
+    expect(playSentenceAudioAtHalfSpeed).toHaveBeenCalledWith(sentence);
+  });
+
+  it("reveals a listening sentence once it has played at half speed", async () => {
+    vi.mocked(playSentenceAudio).mockResolvedValueOnce(false);
+    const { lastFrame, stdin } = renderPlay("listening");
+    await settle();
+    expect(stripAnsi(lastFrame()!)).toContain("Listen…");
+
+    await press(stdin, "h");
+    expect(playSentenceAudioAtHalfSpeed).toHaveBeenCalledWith(sentence);
+    expect(stripAnsi(lastFrame()!)).not.toContain("Listen…");
   });
 
   it("downloads the sentence's audio before it's answered", async () => {

@@ -61,7 +61,7 @@ Keep that cookie private; it's your login.
 | `clozemaster logout` | Forget your login on this machine |
 | `clozemaster mcp` | Run an MCP server so AI apps can add sentences to your collections |
 
-While playing: `1`-`4` picks an answer, `→` gives one hint per sentence, `tab` switches answer mode, `p` replays the audio, `e` explains the sentence, `s` opens settings and `esc` goes back to the menu. In flashcards, `space` reveals, then `1` again, `2` good or `k` known. Press `c` on the menu for Quick Capture and `f` to email feedback to support@clozemaster.com.
+While playing: `1`-`4` picks an answer, `→` gives one hint per sentence, `tab` switches answer mode, `p` replays the audio, `h` replays it at half speed, `e` explains the sentence, `s` opens settings and `esc` goes back to the menu. In flashcards, `space` reveals, then `1` again, `2` good or `k` known. Press `c` on the menu for Quick Capture and `f` to email feedback to support@clozemaster.com.
 
 ## Use with Claude and other AI apps (MCP)
 
