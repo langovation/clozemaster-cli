@@ -78,10 +78,9 @@ export type Round = {
 
 export type PlayMode = "flashcard" | "listening" | "multiple_choice" | "text_input";
 
-// Listening is the web's listening skill answered by typing; flashcards score like multiple choice, as the apps send them.
+// Listening is the web's listening skill answered by typing. Flashcards go up as their own mode so the server counts them separately.
 function apiModeAndSkill(mode: PlayMode) {
   if (mode === "listening") return { mode: "text_input", skill: "listening" };
-  if (mode === "flashcard") return { mode: "multiple_choice", skill: "vocabulary" };
   return { mode, skill: "vocabulary" };
 }
 

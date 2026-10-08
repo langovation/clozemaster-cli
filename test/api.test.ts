@@ -256,7 +256,7 @@ describe("api requests", () => {
       ["multiple_choice", "multiple_choice", "vocabulary"],
       ["text_input", "text_input", "vocabulary"],
       ["listening", "text_input", "listening"],
-      ["flashcard", "multiple_choice", "vocabulary"],
+      ["flashcard", "flashcard", "vocabulary"],
     ] as const)("asks for a %s round as mode %s and skill %s", async (mode, apiMode, skill) => {
       const fetch = stubFetch(200, { collectionClozeSentences: [], wordBank: [] });
       await api.getRound({ mode, playDataUrl: "https://example.com/play" });
