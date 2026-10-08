@@ -20,7 +20,7 @@ import {
   type NewCollectionSentence,
   type OwnCollection,
 } from "./api.js";
-import { hasLogin } from "./config.js";
+import { clearLogin, hasLogin, isUsingSavedLogin } from "./config.js";
 import { startOrResumeBrowserLogin } from "./mcpLogin.js";
 import { currentVersion } from "./updateCheck.js";
 
@@ -101,8 +101,22 @@ function notLoggedInMessage(login: CliLoginStart): string {
 
 async function runTool(action: () => Promise<unknown>): Promise<CallToolResult> {
   try {
-    if (!hasLogin()) return errorResult(notLoggedInMessage(await startOrResumeBrowserLogin()));
+    if (!hasLogin()) return await loginPrompt();
     return jsonResult(await action());
+  } catch (error) {
+    if (isApiError(error, 401) && isUsingSavedLogin()) return promptForFreshLogin();
+    return errorResult(errorMessage(error));
+  }
+}
+
+async function loginPrompt(): Promise<CallToolResult> {
+  return errorResult(notLoggedInMessage(await startOrResumeBrowserLogin()));
+}
+
+async function promptForFreshLogin(): Promise<CallToolResult> {
+  clearLogin();
+  try {
+    return await loginPrompt();
   } catch (error) {
     return errorResult(errorMessage(error));
   }

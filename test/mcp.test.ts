@@ -4,6 +4,7 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import open from "open";
 import * as api from "../src/api.js";
+import { clearLogin, getAuthToken, saveLogin } from "../src/config.js";
 import { createMcpServer } from "../src/mcp.js";
 
 vi.mock("../src/api.js", async (importOriginal) => ({
@@ -83,6 +84,7 @@ describe("MCP server", () => {
   });
 
   afterEach(() => {
+    clearLogin();
     vi.unstubAllEnvs();
     vi.clearAllMocks();
   });
@@ -136,6 +138,33 @@ describe("MCP server", () => {
     await vi.advanceTimersByTimeAsync(1000);
     vi.useRealTimers();
     expect(resultJson(await callTool("list_language_pairings"))).toEqual([{ id: 7, targetLanguage: "German", baseLanguage: "English" }]);
+  });
+
+  describe("when the server rejects the login", () => {
+    const loginPrompt = "Not logged in to Clozemaster yet. A browser window opened to log in, showing the code ABCD-1234";
+
+    beforeEach(() => {
+      vi.mocked(api.getLanguagePairings).mockRejectedValue(new api.ApiError("You're not logged in. Run `clozemaster login`.", 401));
+      vi.mocked(api.startCliLogin).mockResolvedValue({ deviceCode: "device", expiresIn: 600, pollInterval: 1, userCode: "ABCD-1234", verificationUrl: "https://example.com/cli" });
+      vi.mocked(api.pollCliLogin).mockResolvedValue(null);
+    });
+
+    it("forgets a rejected saved login and asks to log in again in the browser", async () => {
+      vi.stubEnv("CLOZEMASTER_TOKEN", "");
+      saveLogin({ authToken: "1:expired", username: "learner" });
+      const result = await callTool("list_language_pairings");
+      expectToolError(result, loginPrompt);
+      expect(getAuthToken()).toBeUndefined();
+      expect(open).toHaveBeenCalledWith("https://example.com/cli");
+    });
+
+    it("keeps reporting a rejected token from the environment", async () => {
+      saveLogin({ authToken: "1:saved", username: "learner" });
+      const result = await callTool("list_language_pairings");
+      expect(resultText(result)).toBe("You're not logged in. Run `clozemaster login`.");
+      vi.stubEnv("CLOZEMASTER_TOKEN", "");
+      expect(getAuthToken()).toBe("1:saved");
+    });
   });
 
   it("lists language pairings with their ids and languages", async () => {

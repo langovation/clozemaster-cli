@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { baseUrl, clearLogin, configDirectory, getAuthToken, getStoredUsername, saveLogin } from "../src/config.js";
+import { baseUrl, clearLogin, configDirectory, getAuthToken, getStoredUsername, isUsingSavedLogin, saveLogin } from "../src/config.js";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings } from "../src/settings.js";
 
 const loginsPath = path.join(configDirectory, "logins.json");
@@ -53,6 +53,21 @@ describe("config", () => {
     clearLogin();
     expect(getAuthToken()).toBeUndefined();
     expect(JSON.parse(fs.readFileSync(loginsPath, "utf8"))).toEqual({ "http://localhost:3000": { authToken: "9:local", username: "dev" } });
+  });
+
+  it("uses the saved login when there's no token in the environment", () => {
+    saveLogin({ authToken: "1:abc", username: "learner" });
+    expect(isUsingSavedLogin()).toBe(true);
+  });
+
+  it("isn't using the saved login when the environment has a token", () => {
+    saveLogin({ authToken: "1:abc", username: "learner" });
+    vi.stubEnv("CLOZEMASTER_TOKEN", "2:env");
+    expect(isUsingSavedLogin()).toBe(false);
+  });
+
+  it("isn't using a saved login when there is none", () => {
+    expect(isUsingSavedLogin()).toBe(false);
   });
 
   it("treats an unreadable logins file as no logins", () => {
