@@ -129,6 +129,7 @@ export function isApiError(error: unknown, status: number): error is ApiError {
   return error instanceof ApiError && error.status === status;
 }
 
+const REQUEST_TIMEOUT_MS = 30_000;
 const ROUND_SIZE = "10";
 const KNOWN_LEVEL = 4;
 const NEVER_DUE_DATE = "2100-01-01";
@@ -169,10 +170,15 @@ async function request<T>(pathOrUrl: string, { body, method = "GET", query }: Re
 
 async function send(url: string, init: RequestInit): Promise<Response> {
   try {
-    return await fetch(url, init);
-  } catch {
+    return await fetch(url, { ...init, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+  } catch (error) {
+    if (isTimeout(error)) throw new ApiError(`${baseUrl} took too long to answer. Try again.`, 0);
     throw new ApiError(`Couldn't reach ${baseUrl}. Check your connection.`, 0);
   }
+}
+
+function isTimeout(error: unknown): boolean {
+  return error instanceof Error && error.name === "TimeoutError";
 }
 
 export async function startCliLogin(): Promise<CliLoginStart> {

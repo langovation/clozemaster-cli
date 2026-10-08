@@ -87,6 +87,20 @@ describe("api requests", () => {
       await expect(api.getLanguagePairings()).rejects.toMatchObject({ message: expect.stringContaining("Couldn't reach"), status: 0 });
     });
 
+    it("gives up on a request after 30 seconds", async () => {
+      const timeout = vi.spyOn(AbortSignal, "timeout");
+      const fetch = stubFetch(200, { languagePairings: [] });
+      await api.getLanguagePairings();
+      expect(timeout).toHaveBeenCalledWith(30_000);
+      expect((fetch.mock.calls[0] as unknown as [string, RequestInit])[1].signal).toBe(timeout.mock.results[0].value);
+      timeout.mockRestore();
+    });
+
+    it("says when the server took too long", async () => {
+      vi.stubGlobal("fetch", vi.fn(async () => Promise.reject(new DOMException("The operation was aborted due to timeout", "TimeoutError"))));
+      await expect(api.getLanguagePairings()).rejects.toMatchObject({ message: expect.stringContaining("took too long to answer. Try again."), status: 0 });
+    });
+
     it("throws ApiError instances", async () => {
       stubFetch(500);
       await expect(api.getLanguagePairings()).rejects.toBeInstanceOf(api.ApiError);
