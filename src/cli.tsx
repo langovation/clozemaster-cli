@@ -16,7 +16,6 @@ Usage
 
 Environment
   CLOZEMASTER_TOKEN    use this auth token instead of logging in
-  CLOZEMASTER_COOKIE   use a browser session cookie instead of logging in
   CLOZEMASTER_URL      server to play against (default https://www.clozemaster.com)`;
 
 const ENTER_ALTERNATE_SCREEN = "\x1b[?1049h\x1b[H";

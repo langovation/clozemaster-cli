@@ -1,3 +1,5 @@
 node_modules
 dist
 bin
+.ruby-lsp
+.claude/settings.local.json

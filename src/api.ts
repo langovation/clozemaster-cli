@@ -328,7 +328,7 @@ export async function createCollectionSentence(
   return response.collectionClozeSentence;
 }
 
-// Upserting an id the collection doesn't have creates a new sentence instead, so callers check it exists first.
+// Callers check the sentence exists first, so an update never saves a different sentence by mistake.
 export async function updateCollectionSentence(
   languagePairing: LanguagePairing,
   { collection, id, text, translation }: { collection: OwnCollection; id: number; text: string; translation: string },
