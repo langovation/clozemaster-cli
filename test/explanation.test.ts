@@ -79,4 +79,30 @@ describe("getExplanation", () => {
     expect(await second).toEqual(await first);
     expect(fetch).toHaveBeenCalledTimes(3);
   });
+
+  it("has nothing to explain without a job url", async () => {
+    await expect(getExplanation({ ...sentence, explanationJobUrl: undefined, id: 7 })).rejects.toThrow("No explanation available.");
+  });
+
+  it("fails when a finished job has no explanation", async () => {
+    stubResponses([200, job("complete")]);
+    await expect(getExplanation({ ...sentence, id: 8 })).rejects.toThrow("No explanation available.");
+  });
+
+  it("gives up after 75 polls", async () => {
+    vi.useFakeTimers();
+    const fetch = vi.fn(async (_url: string, init: RequestInit = {}) => new Response(JSON.stringify(init.method === "POST" ? job("queued") : job(null))));
+    vi.stubGlobal("fetch", fetch);
+    const explanation = getExplanation({ ...sentence, id: 9 });
+    const failure = expect(explanation).rejects.toThrow("The explanation is taking too long. Try again later.");
+    await vi.advanceTimersByTimeAsync(75 * 2000);
+    await failure;
+    expect(fetch).toHaveBeenCalledTimes(77);
+  });
+
+  it("asks again after an earlier request for the same sentence failed", async () => {
+    stubResponses([500, {}], [200, job("complete", "Because.")]);
+    await expect(getExplanation({ ...sentence, id: 10 })).rejects.toThrow("Clozemaster responded 500");
+    expect(await getExplanation({ ...sentence, id: 10 })).toEqual({ structured: undefined, text: "Because." });
+  });
 });
