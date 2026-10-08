@@ -22,9 +22,14 @@ check_ready() {
   [ -d "$web_repo/.git" ] || fail "Can't find the web repo at $web_repo. Set CLOZEMASTER_WEB_REPO."
 }
 
-tag_and_push() {
+bump_version() {
+  [ "$(node -p "require('./package.json').version")" = "$version" ] && return
   npm version "$version" --no-git-tag-version >/dev/null
   git commit -qam "chore: release $tag"
+}
+
+tag_and_push() {
+  bump_version
   git tag "$tag"
   git push -q origin main "$tag"
 }
