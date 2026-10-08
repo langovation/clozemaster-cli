@@ -15,7 +15,7 @@ const collections = fixture("collections").collections;
 const collectionRound = fixture("round_collection").collectionClozeSentences;
 const core = collections.find((collection: { name: string }) => collection.name === "Core 1,000 Collection");
 
-vi.mock("../src/audio.js", () => ({ playSentenceAudio: vi.fn(async () => true), playSoundEffect: vi.fn(async () => true), preloadSentenceAudio: vi.fn(), stopAudio: vi.fn() }));
+vi.mock("../src/audio.js", () => ({ canPlayAtHalfSpeed: true, playSentenceAudio: vi.fn(async () => true), playSoundEffect: vi.fn(async () => true), preloadSentenceAudio: vi.fn(), stopAudio: vi.fn() }));
 
 describe("App against recorded API responses", () => {
   let server: ReturnType<typeof startFakeServer>;
