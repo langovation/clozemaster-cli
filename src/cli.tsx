@@ -3,6 +3,7 @@ import { render } from "ink";
 import { App } from "./App.js";
 import { baseUrl, clearLogin } from "./config.js";
 import { startMcpServer } from "./mcp.js";
+import { currentVersion } from "./updateCheck.js";
 
 const HELP = `Play Clozemaster in your terminal.
 
@@ -11,6 +12,7 @@ Usage
   clozemaster login    log in with your browser
   clozemaster logout   forget your login on this machine
   clozemaster mcp      run an MCP server on stdio so Claude can write sentences into your collections
+  clozemaster version  print the version
 
 Environment
   CLOZEMASTER_TOKEN    use this auth token instead of logging in
@@ -32,6 +34,11 @@ switch (command) {
   case "--help":
   case "-h":
     console.log(HELP);
+    break;
+  case "version":
+  case "--version":
+  case "-v":
+    console.log(currentVersion);
     break;
   case "logout":
     logOut();

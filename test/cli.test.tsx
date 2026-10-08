@@ -3,6 +3,7 @@ import { render } from "ink";
 import { App } from "../src/App.js";
 import { clearLogin } from "../src/config.js";
 import { startMcpServer } from "../src/mcp.js";
+import { currentVersion } from "../src/updateCheck.js";
 
 vi.mock("ink", () => ({ render: vi.fn(() => ({ waitUntilExit: async () => undefined })) }));
 vi.mock("../src/App.js", () => ({ App: vi.fn() }));
@@ -57,6 +58,18 @@ describe("cli", () => {
     await runCli(command);
     expect(console.log).toHaveBeenCalledWith(expect.stringContaining("Usage\n  clozemaster          play"));
     expect(render).not.toHaveBeenCalled();
+  });
+
+  it.each(["version", "--version", "-v"])("prints the version for %s", async (command) => {
+    await runCli(command);
+    expect(console.log).toHaveBeenCalledWith(currentVersion);
+    expect(process.exitCode).toBeUndefined();
+    expect(render).not.toHaveBeenCalled();
+  });
+
+  it("lists the version command in the usage", async () => {
+    await runCli("help");
+    expect(console.log).toHaveBeenCalledWith(expect.stringContaining("clozemaster version  print the version"));
   });
 
   it("logs out", async () => {
