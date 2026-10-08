@@ -2,6 +2,7 @@ import React from "react";
 import { render } from "ink";
 import { App } from "./App.js";
 import { baseUrl, clearLogin } from "./config.js";
+import { startMcpServer } from "./mcp.js";
 
 const HELP = `Play Clozemaster in your terminal.
 
@@ -9,6 +10,7 @@ Usage
   clozemaster          play (logs you in first if needed)
   clozemaster login    log in with your browser
   clozemaster logout   forget your login on this machine
+  clozemaster mcp      run an MCP server on stdio so Claude can manage your collections and Quick Capture
 
 Environment
   CLOZEMASTER_TOKEN    use this auth token instead of logging in
@@ -34,6 +36,8 @@ if (command === "help" || command === "--help" || command === "-h") {
   console.log(`Logged out of ${baseUrl}.`);
   const loginVariables = ["CLOZEMASTER_TOKEN", "CLOZEMASTER_COOKIE"].filter((name) => process.env[name]);
   if (loginVariables.length) console.log(`${loginVariables.join(" and ")} still logs you in until you unset it.`);
+} else if (command === "mcp") {
+  startMcpServer();
 } else if (command === undefined || command === "login") {
   runFullScreen(<App forceLogin={command === "login"} />);
 } else {

@@ -60,7 +60,31 @@ Keep that cookie private; it's your login.
 | `clozemaster login` | Log in again with your browser |
 | `clozemaster logout` | Forget your login on this machine |
 
+| `clozemaster mcp` | Run an MCP server on stdio for Claude |
+
 While playing: `1`-`4` picks an answer, `→` gives one hint per sentence, `tab` switches answer mode, `p` replays the audio, `e` explains the sentence, `s` opens settings and `esc` goes back to the menu. In flashcards, `space` reveals, then `1` again, `2` good or `k` known. Press `c` on the menu for Quick Capture and `f` to email feedback to support@clozemaster.com.
+
+## Use with Claude (MCP)
+
+`clozemaster mcp` lets Claude Code or Claude Desktop manage your collections and Quick Capture words: list and create collections, add, edit and delete Quick Capture entries, and import them into a collection. It doesn't play rounds.
+
+Log in first by running `clozemaster` once; the MCP server uses that saved login.
+
+Claude Code:
+
+```sh
+claude mcp add clozemaster -- clozemaster mcp
+```
+
+Claude Desktop, in `claude_desktop_config.json` (use the full path from `which clozemaster` if Claude can't find it):
+
+```json
+{
+  "mcpServers": {
+    "clozemaster": { "command": "clozemaster", "args": ["mcp"] }
+  }
+}
+```
 
 ## Development
 
