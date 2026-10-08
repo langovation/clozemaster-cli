@@ -39,6 +39,14 @@ describe("App against recorded API responses", () => {
     return app;
   }
 
+  async function answerEverySentenceCorrectly({ lastFrame, stdin }: Pick<ReturnType<typeof render>, "lastFrame" | "stdin">) {
+    for (const sentence of collectionRound) {
+      const cloze = splitCloze(sentence.text).cloze;
+      const optionNumber = stripAnsi(lastFrame()!).match(new RegExp(`(\\d) ${cloze}(\\s|$)`))![1];
+      await press(stdin, optionNumber, ENTER);
+    }
+  }
+
   it("lists only my dashboard collections, custom ones included, in the web's order", async () => {
     const frame = stripAnsi((await openPairing()).lastFrame()!);
     const names = ["Review", "500 Most Common", "Core 1,000 Collection", "My Words", "Verbs"];
@@ -79,11 +87,7 @@ describe("App against recorded API responses", () => {
     await press(stdin, DOWN, DOWN, ENTER, ENTER);
     await waitForText(lastFrame, collectionRound[0].translation);
 
-    for (const sentence of collectionRound) {
-      const cloze = splitCloze(sentence.text).cloze;
-      const optionNumber = stripAnsi(lastFrame()!).match(new RegExp(`(\\d) ${cloze}(\\s|$)`))![1];
-      await press(stdin, optionNumber, ENTER);
-    }
+    await answerEverySentenceCorrectly({ lastFrame, stdin });
 
     expect(stripAnsi(lastFrame()!)).toMatch(new RegExp(`${collectionRound.length}\\s+0\\s+100%`));
     expect(stripAnsi(lastFrame()!)).toContain("52/100 points today");
@@ -97,11 +101,7 @@ describe("App against recorded API responses", () => {
     await press(stdin, DOWN, DOWN, ENTER, ENTER);
     await waitForText(lastFrame, collectionRound[0].translation);
 
-    for (const sentence of collectionRound) {
-      const cloze = splitCloze(sentence.text).cloze;
-      const optionNumber = stripAnsi(lastFrame()!).match(new RegExp(`(\\d) ${cloze}(\\s|$)`))![1];
-      await press(stdin, optionNumber, ENTER);
-    }
+    await answerEverySentenceCorrectly({ lastFrame, stdin });
     await press(stdin, ESCAPE);
     await waitForText(lastFrame, "What do you want to play?");
 

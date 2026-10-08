@@ -28,12 +28,17 @@ describe("Quick Capture", () => {
     vi.restoreAllMocks();
   });
 
-  async function openQuickCapture() {
+  async function goToQuickCapture() {
     const app = render(<App />);
     await waitForText(app.lastFrame, "What are you learning today?");
     await press(app.stdin, ENTER);
     await waitForText(app.lastFrame, "What do you want to play?");
     await press(app.stdin, "c");
+    return app;
+  }
+
+  async function openQuickCapture() {
+    const app = await goToQuickCapture();
     await waitForText(app.lastFrame, "Nothing captured yet.");
     return app;
   }
@@ -179,11 +184,7 @@ describe("Quick Capture", () => {
 
   it("marks a word that couldn't be translated", async () => {
     vi.spyOn(api, "getQuickCaptureEntries").mockResolvedValue([{ id: "1", status: "failed", text: "gato", translation: null, url: "https://example.com/qce/1" }]);
-    const app = render(<App />);
-    await waitForText(app.lastFrame, "What are you learning today?");
-    await press(app.stdin, ENTER);
-    await waitForText(app.lastFrame, "What do you want to play?");
-    await press(app.stdin, "c");
+    const app = await goToQuickCapture();
     await waitForText(app.lastFrame, "failed");
   });
 
@@ -207,11 +208,7 @@ describe("Quick Capture", () => {
 
   it("says when a word has no example sentence yet", async () => {
     vi.spyOn(api, "getQuickCaptureEntries").mockResolvedValue([{ id: "1", status: "processed", text: "gato", translation: "cat", url: "https://example.com/qce/1" }]);
-    const app = render(<App />);
-    await waitForText(app.lastFrame, "What are you learning today?");
-    await press(app.stdin, ENTER);
-    await waitForText(app.lastFrame, "What do you want to play?");
-    await press(app.stdin, "c");
+    const app = await goToQuickCapture();
     await waitForText(app.lastFrame, "cat");
     await press(app.stdin, TAB, ENTER);
     await waitForText(app.lastFrame, "No example sentence yet.");

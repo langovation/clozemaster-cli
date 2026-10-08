@@ -26,14 +26,21 @@ const choice = { playDataUrl: "https://example.com/play", title: "Core 1,000 Col
 
 const progress = { currentStreakDays: 12, dailyGoalPointsPerDay: 100, level: 7, numPointsToday: 40, score: 900 };
 
-function renderPlay(mode: api.PlayMode, settings: Partial<Settings> = {}, onToggleMode = vi.fn()) {
+type PlayProps = React.ComponentProps<typeof Play>;
+
+function renderPlay(mode: api.PlayMode, settings: Partial<Settings> = {}, props: Partial<PlayProps> = {}) {
   saveSettings({ ...DEFAULT_SETTINGS, ...settings });
-  return render(
+  const allProps = { choice, mode, onMenu: vi.fn(), onProgress: vi.fn(), onToggleMode: vi.fn(), ...props };
+  const withProviders = (playProps: PlayProps) => (
     <SettingsProvider>
-      <Play choice={choice} mode={mode} onMenu={vi.fn()} onProgress={vi.fn()} onToggleMode={onToggleMode} />
-    </SettingsProvider>,
+      <Play {...playProps} />
+    </SettingsProvider>
   );
+  const app = render(withProviders(allProps));
+  return { ...app, switchMode: (nextMode: api.PlayMode) => app.rerender(withProviders({ ...allProps, mode: nextMode })) };
 }
+
+const unknownCollectionChoice = { playDataUrl: "https://example.com/play", title: "Review" };
 
 vi.mock("../src/audio.js", () => ({ canPlayAtHalfSpeed: true, playSentenceAudio: vi.fn(async () => true), playSentenceAudioAtHalfSpeed: vi.fn(async () => true), playSoundEffect: vi.fn(async () => true), preloadSentenceAudio: vi.fn(), stopAudio: vi.fn() }));
 
@@ -215,7 +222,7 @@ describe("Play", () => {
 
   it("doesn't switch mode once a flashcard is revealed", async () => {
     const onToggleMode = vi.fn();
-    const { stdin } = renderPlay("flashcard", {}, onToggleMode);
+    const { stdin } = renderPlay("flashcard", {}, { onToggleMode });
     await settle();
     await press(stdin, " ", "\t");
     expect(onToggleMode).not.toHaveBeenCalled();
@@ -570,12 +577,7 @@ describe("Play", () => {
     });
 
     it("leaves out editing when the round doesn't say where the sentence is", async () => {
-      saveSettings(DEFAULT_SETTINGS);
-      const { lastFrame } = render(
-        <SettingsProvider>
-          <Play choice={{ playDataUrl: "https://example.com/play", title: "Review" }} mode="multiple_choice" onMenu={vi.fn()} onProgress={vi.fn()} onToggleMode={vi.fn()} />
-        </SettingsProvider>,
-      );
+      const { lastFrame } = renderPlay("multiple_choice", {}, { choice: unknownCollectionChoice });
       await settle();
       expectHints(lastFrame()!, "1-4 to answer · tab: text input · s settings · esc back");
     });
@@ -615,28 +617,12 @@ describe("Play", () => {
     });
   });
 
-  describe("loading the round", () => {
-    function renderWithCallbacks(mode: api.PlayMode, callbacks: { onMenu?: () => void; onProgress?: () => void; onToggleMode?: () => void }) {
-      saveSettings(DEFAULT_SETTINGS);
-      const props = { choice, mode, onMenu: vi.fn(), onProgress: vi.fn(), onToggleMode: vi.fn(), ...callbacks };
-      const app = render(
-        <SettingsProvider>
-          <Play {...props} />
-        </SettingsProvider>,
-      );
-      const rerender = (nextMode: api.PlayMode) =>
-        app.rerender(
-          <SettingsProvider>
-            <Play {...props} mode={nextMode} />
-          </SettingsProvider>,
-        );
-      return { ...app, rerender };
-    }
+  describe("loading and leaving the round", () => {
 
     it("says when there's nothing to play and goes back on esc", async () => {
       vi.mocked(api.getRound).mockResolvedValue({ collectionClozeSentences: [], wordBank: [] });
       const onMenu = vi.fn();
-      const { lastFrame, stdin } = renderWithCallbacks("text_input", { onMenu });
+      const { lastFrame, stdin } = renderPlay("text_input", {}, { onMenu });
       await settle();
       expect(stripAnsi(lastFrame()!)).toContain("Nothing to play in Core 1,000 Collection right now.");
       await press(stdin, ESCAPE);
@@ -646,7 +632,7 @@ describe("Play", () => {
     it("shows a failure to load and goes back on esc", async () => {
       vi.mocked(api.getRound).mockRejectedValue(new Error("offline"));
       const onMenu = vi.fn();
-      const { lastFrame, stdin } = renderWithCallbacks("text_input", { onMenu });
+      const { lastFrame, stdin } = renderPlay("text_input", {}, { onMenu });
       await settle();
       expect(stripAnsi(lastFrame()!)).toContain("offline");
       await press(stdin, ESCAPE);
@@ -655,36 +641,36 @@ describe("Play", () => {
 
     it("says what it's loading", async () => {
       vi.mocked(api.getRound).mockReturnValue(new Promise(() => {}));
-      const { lastFrame } = renderWithCallbacks("text_input", {});
+      const { lastFrame } = renderPlay("text_input");
       await settle();
       expect(stripAnsi(lastFrame()!)).toContain("Loading Core 1,000 Collection…");
     });
 
     it("asks for the round in the mode being played", async () => {
-      renderWithCallbacks("listening", {});
+      renderPlay("listening");
       await settle();
       expect(api.getRound).toHaveBeenCalledWith({ mode: "listening", playDataUrl: choice.playDataUrl, scope: undefined });
     });
 
     it("loads a new round when switching to listening", async () => {
-      const { rerender } = renderWithCallbacks("text_input", {});
+      const { switchMode } = renderPlay("text_input");
       await settle();
-      rerender("listening");
+      switchMode("listening");
       await settle();
       expect(api.getRound).toHaveBeenCalledTimes(2);
     });
 
     it("keeps the round when switching between other modes", async () => {
-      const { rerender } = renderWithCallbacks("multiple_choice", {});
+      const { switchMode } = renderPlay("multiple_choice");
       await settle();
-      rerender("text_input");
+      switchMode("text_input");
       await settle();
       expect(api.getRound).toHaveBeenCalledTimes(1);
     });
 
     it("switches mode with tab before answering", async () => {
       const onToggleMode = vi.fn();
-      const { stdin } = renderWithCallbacks("multiple_choice", { onToggleMode });
+      const { stdin } = renderPlay("multiple_choice", {}, { onToggleMode });
       await settle();
       await press(stdin, "\t");
       expect(onToggleMode).toHaveBeenCalled();
@@ -692,7 +678,7 @@ describe("Play", () => {
 
     it("doesn't switch mode once answered", async () => {
       const onToggleMode = vi.fn();
-      const { stdin } = renderWithCallbacks("text_input", { onToggleMode });
+      const { stdin } = renderPlay("text_input", {}, { onToggleMode });
       await settle();
       await press(stdin, "mucha", ENTER, "\t");
       expect(onToggleMode).not.toHaveBeenCalled();
@@ -700,7 +686,7 @@ describe("Play", () => {
 
     it("passes on the saved progress", async () => {
       const onProgress = vi.fn();
-      const { stdin } = renderWithCallbacks("text_input", { onProgress });
+      const { stdin } = renderPlay("text_input", {}, { onProgress });
       await settle();
       await press(stdin, "mucha", ENTER);
       expect(onProgress).toHaveBeenCalledWith(progress);
@@ -708,7 +694,7 @@ describe("Play", () => {
 
     it("goes back mid-round on esc", async () => {
       const onMenu = vi.fn();
-      const { stdin } = renderWithCallbacks("text_input", { onMenu });
+      const { stdin } = renderPlay("text_input", {}, { onMenu });
       await settle();
       await press(stdin, ESCAPE);
       expect(onMenu).toHaveBeenCalled();
@@ -716,7 +702,7 @@ describe("Play", () => {
 
     it("saves a held flashcard grade when going back mid-round", async () => {
       vi.mocked(api.getRound).mockResolvedValue({ collectionClozeSentences: [sentence, { ...sentence, id: 8 }], wordBank: [] });
-      const { stdin } = renderWithCallbacks("flashcard", {});
+      const { stdin } = renderPlay("flashcard");
       await settle();
       await press(stdin, " ", "2");
       expect(api.saveAnswer).not.toHaveBeenCalled();
@@ -727,7 +713,7 @@ describe("Play", () => {
     it("closes the explanation on esc without leaving the round", async () => {
       vi.mocked(api.getRound).mockResolvedValue({ collectionClozeSentences: [{ ...sentence, explanation: "Because." }], wordBank: [] });
       const onMenu = vi.fn();
-      const { lastFrame, stdin } = renderWithCallbacks("text_input", { onMenu });
+      const { lastFrame, stdin } = renderPlay("text_input", {}, { onMenu });
       await settle();
       await press(stdin, "mucha", ENTER, "e");
       expect(stripAnsi(lastFrame()!)).toContain("Because.");
@@ -739,13 +725,8 @@ describe("Play", () => {
 
   describe("saving", () => {
     it("says when the round doesn't say where to save an answer", async () => {
-      saveSettings(DEFAULT_SETTINGS);
       vi.mocked(api.getRound).mockResolvedValue({ collectionClozeSentences: [{ ...sentence, collectionClozeSentencesAnswerUrl: undefined }], wordBank: [] });
-      const { lastFrame, stdin } = render(
-        <SettingsProvider>
-          <Play choice={{ playDataUrl: "https://example.com/play", title: "Review" }} mode="text_input" onMenu={vi.fn()} onProgress={vi.fn()} onToggleMode={vi.fn()} />
-        </SettingsProvider>,
-      );
+      const { lastFrame, stdin } = renderPlay("text_input", {}, { choice: unknownCollectionChoice });
       await settle();
       await press(stdin, "mucha", ENTER);
       expect(stripAnsi(lastFrame()!)).toContain("Couldn't save an answer: this round doesn't say which collection the sentence is in.");
@@ -753,12 +734,7 @@ describe("Play", () => {
 
     it("saves to the round's answer url when the sentence has none", async () => {
       vi.mocked(api.getRound).mockResolvedValue({ collectionClozeSentences: [{ ...sentence, collectionClozeSentencesAnswerUrl: undefined }], wordBank: [] });
-      saveSettings(DEFAULT_SETTINGS);
-      const { stdin } = render(
-        <SettingsProvider>
-          <Play choice={{ ...choice, answerUrl: "https://example.com/round-answer" }} mode="text_input" onMenu={vi.fn()} onProgress={vi.fn()} onToggleMode={vi.fn()} />
-        </SettingsProvider>,
-      );
+      const { stdin } = renderPlay("text_input", {}, { choice: { ...choice, answerUrl: "https://example.com/round-answer" } });
       await settle();
       await press(stdin, "mucha", ENTER);
       expect(api.saveAnswer).toHaveBeenCalledWith(expect.objectContaining({ answerUrl: "https://example.com/round-answer" }));
