@@ -9,7 +9,7 @@ import { configDirectory } from "../src/config.js";
 import { Play } from "../src/screens/Play.js";
 import { saveSettings, DEFAULT_SETTINGS, type Settings } from "../src/settings.js";
 import { SettingsProvider } from "../src/SettingsContext.js";
-import { DOWN, ENTER, ESCAPE, press, RIGHT_ARROW, settle, showsInColor, stripAnsi } from "./helpers.js";
+import { DOWN, ENTER, ESCAPE, press, RIGHT_ARROW, settle, showsInColor, stripAnsi, unwrapped } from "./helpers.js";
 
 const sentence: api.Sentence = {
   alternativeAnswers: [],
@@ -517,6 +517,424 @@ describe("Play", () => {
       await press(stdin, "c");
 
       expect(stripAnsi(lastFrame()!)).toContain("Editing sentences needs Clozemaster Pro.");
+    });
+  });
+
+  describe("hints", () => {
+    // The hints are the last line, which wraps when it's longer than the terminal.
+    function expectHints(frame: string, hints: string) {
+      expect(unwrapped(frame)).toMatch(new RegExp(`(?<!·) ${hints.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`));
+    }
+
+    it("shows how to answer multiple choice", async () => {
+      const { lastFrame } = renderPlay("multiple_choice");
+      await settle();
+      expectHints(lastFrame()!, "1-4 to answer · tab: text input · s settings · c edit card · esc back");
+    });
+
+    it("shows how to answer text input", async () => {
+      const { lastFrame } = renderPlay("text_input");
+      await settle();
+      expectHints(lastFrame()!, "→ hint · ↑ accent · tab: listening · esc back");
+    });
+
+    it("drops the hint once it's used", async () => {
+      const { lastFrame, stdin } = renderPlay("text_input");
+      await settle();
+      await press(stdin, RIGHT_ARROW);
+      expectHints(lastFrame()!, "↑ accent · tab: listening · esc back");
+    });
+
+    it("shows how to continue after answering", async () => {
+      const { lastFrame, stdin } = renderPlay("text_input");
+      await settle();
+      await press(stdin, "mucha", ENTER);
+      expectHints(lastFrame()!, "enter to continue · p replay · h half speed · s settings · c edit card · esc back");
+    });
+
+    it("leaves out replaying after answering with audio off", async () => {
+      const { lastFrame, stdin } = renderPlay("text_input", { audio: false });
+      await settle();
+      await press(stdin, "mucha", ENTER);
+      expectHints(lastFrame()!, "enter to continue · s settings · c edit card · esc back");
+    });
+
+    it("offers to explain and then hide the explanation", async () => {
+      vi.mocked(api.getRound).mockResolvedValue({ collectionClozeSentences: [{ ...sentence, explanation: "Because." }], wordBank: [] });
+      const { lastFrame, stdin } = renderPlay("text_input");
+      await settle();
+      await press(stdin, "mucha", ENTER);
+      expectHints(lastFrame()!, "enter to continue · p replay · h half speed · e explain · s settings · c edit card · esc back");
+      await press(stdin, "e");
+      expectHints(lastFrame()!, "enter to continue · p replay · h half speed · e hide explanation · s settings · c edit card · esc back");
+    });
+
+    it("leaves out editing when the round doesn't say where the sentence is", async () => {
+      saveSettings(DEFAULT_SETTINGS);
+      const { lastFrame } = render(
+        <SettingsProvider>
+          <Play choice={{ playDataUrl: "https://example.com/play", title: "Review" }} mode="multiple_choice" onMenu={vi.fn()} onProgress={vi.fn()} onToggleMode={vi.fn()} />
+        </SettingsProvider>,
+      );
+      await settle();
+      expectHints(lastFrame()!, "1-4 to answer · tab: text input · s settings · esc back");
+    });
+
+    it("shows how to reveal a flashcard", async () => {
+      const { lastFrame } = renderPlay("flashcard");
+      await settle();
+      expectHints(lastFrame()!, "→ hint · space to reveal · tab: multiple choice · s settings · c edit card · esc back");
+    });
+
+    it("shows replay but not switching mode once a flashcard is revealed", async () => {
+      const { lastFrame, stdin } = renderPlay("flashcard");
+      await settle();
+      await press(stdin, " ");
+      expectHints(lastFrame()!, "p replay · h half speed · s settings · c edit card · esc back");
+    });
+
+    it("offers the previous flashcard after grading one", async () => {
+      vi.mocked(api.getRound).mockResolvedValue({ collectionClozeSentences: [sentence, { ...sentence, id: 8 }], wordBank: [] });
+      const { lastFrame, stdin } = renderPlay("flashcard");
+      await settle();
+      await press(stdin, " ", "2");
+      expectHints(lastFrame()!, "→ hint · space to reveal · b previous card · tab: multiple choice · s settings · c edit card · esc back");
+    });
+
+    it("only offers replay while listening", async () => {
+      vi.mocked(playSentenceAudio).mockResolvedValueOnce(false);
+      const { lastFrame } = renderPlay("listening");
+      await settle();
+      expectHints(lastFrame()!, "p replay · h half speed · esc back");
+    });
+
+    it("shows how to answer once the listening sentence has played", async () => {
+      const { lastFrame } = renderPlay("listening");
+      await settle();
+      expectHints(lastFrame()!, "→ hint · ↑ accent · tab: flashcards · esc back");
+    });
+  });
+
+  describe("loading the round", () => {
+    function renderWithCallbacks(mode: api.PlayMode, callbacks: { onMenu?: () => void; onProgress?: () => void; onToggleMode?: () => void }) {
+      saveSettings(DEFAULT_SETTINGS);
+      const props = { choice, mode, onMenu: vi.fn(), onProgress: vi.fn(), onToggleMode: vi.fn(), ...callbacks };
+      const app = render(
+        <SettingsProvider>
+          <Play {...props} />
+        </SettingsProvider>,
+      );
+      const rerender = (nextMode: api.PlayMode) =>
+        app.rerender(
+          <SettingsProvider>
+            <Play {...props} mode={nextMode} />
+          </SettingsProvider>,
+        );
+      return { ...app, rerender };
+    }
+
+    it("says when there's nothing to play and goes back on esc", async () => {
+      vi.mocked(api.getRound).mockResolvedValue({ collectionClozeSentences: [], wordBank: [] });
+      const onMenu = vi.fn();
+      const { lastFrame, stdin } = renderWithCallbacks("text_input", { onMenu });
+      await settle();
+      expect(stripAnsi(lastFrame()!)).toContain("Nothing to play in Core 1,000 Collection right now.");
+      await press(stdin, ESCAPE);
+      expect(onMenu).toHaveBeenCalled();
+    });
+
+    it("shows a failure to load and goes back on esc", async () => {
+      vi.mocked(api.getRound).mockRejectedValue(new Error("offline"));
+      const onMenu = vi.fn();
+      const { lastFrame, stdin } = renderWithCallbacks("text_input", { onMenu });
+      await settle();
+      expect(stripAnsi(lastFrame()!)).toContain("offline");
+      await press(stdin, ESCAPE);
+      expect(onMenu).toHaveBeenCalled();
+    });
+
+    it("says what it's loading", async () => {
+      vi.mocked(api.getRound).mockReturnValue(new Promise(() => {}));
+      const { lastFrame } = renderWithCallbacks("text_input", {});
+      await settle();
+      expect(stripAnsi(lastFrame()!)).toContain("Loading Core 1,000 Collection…");
+    });
+
+    it("asks for the round in the mode being played", async () => {
+      renderWithCallbacks("listening", {});
+      await settle();
+      expect(api.getRound).toHaveBeenCalledWith({ mode: "listening", playDataUrl: choice.playDataUrl, scope: undefined });
+    });
+
+    it("loads a new round when switching to listening", async () => {
+      const { rerender } = renderWithCallbacks("text_input", {});
+      await settle();
+      rerender("listening");
+      await settle();
+      expect(api.getRound).toHaveBeenCalledTimes(2);
+    });
+
+    it("keeps the round when switching between other modes", async () => {
+      const { rerender } = renderWithCallbacks("multiple_choice", {});
+      await settle();
+      rerender("text_input");
+      await settle();
+      expect(api.getRound).toHaveBeenCalledTimes(1);
+    });
+
+    it("switches mode with tab before answering", async () => {
+      const onToggleMode = vi.fn();
+      const { stdin } = renderWithCallbacks("multiple_choice", { onToggleMode });
+      await settle();
+      await press(stdin, "\t");
+      expect(onToggleMode).toHaveBeenCalled();
+    });
+
+    it("doesn't switch mode once answered", async () => {
+      const onToggleMode = vi.fn();
+      const { stdin } = renderWithCallbacks("text_input", { onToggleMode });
+      await settle();
+      await press(stdin, "mucha", ENTER, "\t");
+      expect(onToggleMode).not.toHaveBeenCalled();
+    });
+
+    it("passes on the saved progress", async () => {
+      const onProgress = vi.fn();
+      const { stdin } = renderWithCallbacks("text_input", { onProgress });
+      await settle();
+      await press(stdin, "mucha", ENTER);
+      expect(onProgress).toHaveBeenCalledWith(progress);
+    });
+
+    it("goes back mid-round on esc", async () => {
+      const onMenu = vi.fn();
+      const { stdin } = renderWithCallbacks("text_input", { onMenu });
+      await settle();
+      await press(stdin, ESCAPE);
+      expect(onMenu).toHaveBeenCalled();
+    });
+
+    it("saves a held flashcard grade when going back mid-round", async () => {
+      vi.mocked(api.getRound).mockResolvedValue({ collectionClozeSentences: [sentence, { ...sentence, id: 8 }], wordBank: [] });
+      const { stdin } = renderWithCallbacks("flashcard", {});
+      await settle();
+      await press(stdin, " ", "2");
+      expect(api.saveAnswer).not.toHaveBeenCalled();
+      await press(stdin, ESCAPE);
+      expect(api.saveAnswer).toHaveBeenCalledWith(expect.objectContaining({ correct: true, mode: "flashcard" }));
+    });
+
+    it("closes the explanation on esc without leaving the round", async () => {
+      vi.mocked(api.getRound).mockResolvedValue({ collectionClozeSentences: [{ ...sentence, explanation: "Because." }], wordBank: [] });
+      const onMenu = vi.fn();
+      const { lastFrame, stdin } = renderWithCallbacks("text_input", { onMenu });
+      await settle();
+      await press(stdin, "mucha", ENTER, "e");
+      expect(stripAnsi(lastFrame()!)).toContain("Because.");
+      await press(stdin, ESCAPE);
+      expect(stripAnsi(lastFrame()!)).not.toContain("Because.");
+      expect(onMenu).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("saving", () => {
+    it("says when the round doesn't say where to save an answer", async () => {
+      saveSettings(DEFAULT_SETTINGS);
+      vi.mocked(api.getRound).mockResolvedValue({ collectionClozeSentences: [{ ...sentence, collectionClozeSentencesAnswerUrl: undefined }], wordBank: [] });
+      const { lastFrame, stdin } = render(
+        <SettingsProvider>
+          <Play choice={{ playDataUrl: "https://example.com/play", title: "Review" }} mode="text_input" onMenu={vi.fn()} onProgress={vi.fn()} onToggleMode={vi.fn()} />
+        </SettingsProvider>,
+      );
+      await settle();
+      await press(stdin, "mucha", ENTER);
+      expect(stripAnsi(lastFrame()!)).toContain("Couldn't save an answer: this round doesn't say which collection the sentence is in.");
+    });
+
+    it("saves to the round's answer url when the sentence has none", async () => {
+      vi.mocked(api.getRound).mockResolvedValue({ collectionClozeSentences: [{ ...sentence, collectionClozeSentencesAnswerUrl: undefined }], wordBank: [] });
+      saveSettings(DEFAULT_SETTINGS);
+      const { stdin } = render(
+        <SettingsProvider>
+          <Play choice={{ ...choice, answerUrl: "https://example.com/round-answer" }} mode="text_input" onMenu={vi.fn()} onProgress={vi.fn()} onToggleMode={vi.fn()} />
+        </SettingsProvider>,
+      );
+      await settle();
+      await press(stdin, "mucha", ENTER);
+      expect(api.saveAnswer).toHaveBeenCalledWith(expect.objectContaining({ answerUrl: "https://example.com/round-answer" }));
+    });
+
+    it("sends the time spent on the sentence", async () => {
+      const { stdin } = renderPlay("text_input");
+      await settle();
+      await press(stdin, "mucha", ENTER);
+      expect(api.saveAnswer).toHaveBeenCalledWith(expect.objectContaining({ secondsSpent: 0, sentence, usedHint: false }));
+    });
+
+    it("shows a failure to mark a sentence known", async () => {
+      vi.spyOn(api, "markSentenceKnown").mockRejectedValue(new Error("offline"));
+      vi.mocked(api.getRound).mockResolvedValue({ collectionClozeSentences: [sentence, { ...sentence, id: 8 }], wordBank: [] });
+      const { lastFrame, stdin } = renderPlay("flashcard");
+      await settle();
+      await press(stdin, " ", "k");
+      expect(stripAnsi(lastFrame()!)).toContain("Couldn't save an answer: offline");
+    });
+  });
+
+  describe("the card", () => {
+    it("shows the sentence's hint before answering only", async () => {
+      vi.mocked(api.getRound).mockResolvedValue({ collectionClozeSentences: [{ ...sentence, hint: "a lot" }], wordBank: [] });
+      const { lastFrame, stdin } = renderPlay("text_input");
+      await settle();
+      expect(stripAnsi(lastFrame()!)).toContain("hint: a lot");
+      await press(stdin, "mucha", ENTER);
+      expect(stripAnsi(lastFrame()!)).not.toContain("hint: a lot");
+    });
+
+    it("hides the sentence's hint with hints off", async () => {
+      vi.mocked(api.getRound).mockResolvedValue({ collectionClozeSentences: [{ ...sentence, hint: "a lot" }], wordBank: [] });
+      const { lastFrame } = renderPlay("text_input", { hints: false });
+      await settle();
+      expect(stripAnsi(lastFrame()!)).not.toContain("hint: a lot");
+    });
+
+    it("shows the pronunciation after answering", async () => {
+      vi.mocked(api.getRound).mockResolvedValue({ collectionClozeSentences: [{ ...sentence, pronunciation: "TEN-go" }], wordBank: [] });
+      const { lastFrame, stdin } = renderPlay("text_input");
+      await settle();
+      expect(stripAnsi(lastFrame()!)).not.toContain("TEN-go");
+      await press(stdin, "mucha", ENTER);
+      expect(stripAnsi(lastFrame()!)).toContain("TEN-go");
+    });
+
+    it("hides the pronunciation with it turned off", async () => {
+      vi.mocked(api.getRound).mockResolvedValue({ collectionClozeSentences: [{ ...sentence, pronunciation: "TEN-go" }], wordBank: [] });
+      const { lastFrame, stdin } = renderPlay("text_input", { pronunciation: false });
+      await settle();
+      await press(stdin, "mucha", ENTER);
+      expect(stripAnsi(lastFrame()!)).not.toContain("TEN-go");
+    });
+
+    it("never shows the translation when hidden", async () => {
+      const { lastFrame, stdin } = renderPlay("text_input", { translation: "hidden" });
+      await settle();
+      await press(stdin, "mucha", ENTER);
+      expect(lastFrame()).not.toContain("I'm very hungry.");
+    });
+
+    it("shows the blank as underscores the length of the word", async () => {
+      const { lastFrame } = renderPlay("text_input");
+      await settle();
+      expect(stripAnsi(lastFrame()!)).toContain("Tengo _____ hambre.");
+    });
+
+    it("shows at least three underscores for a short word", async () => {
+      vi.mocked(api.getRound).mockResolvedValue({ collectionClozeSentences: [{ ...sentence, text: "{{Yo}} tengo hambre." }], wordBank: [] });
+      const { lastFrame } = renderPlay("text_input");
+      await settle();
+      expect(stripAnsi(lastFrame()!)).toContain("___ tengo hambre.");
+    });
+
+    it("shows the answer in a self-graded flashcard's colour", async () => {
+      vi.mocked(api.getRound).mockResolvedValue({ collectionClozeSentences: [sentence, { ...sentence, id: 8 }], wordBank: [] });
+      const { lastFrame, stdin } = renderPlay("flashcard");
+      await settle();
+      await press(stdin, " ", "1");
+      expect(stripAnsi(lastFrame()!)).toContain("■□□ 2/3");
+    });
+
+    it("shows the round's title", async () => {
+      const { lastFrame } = renderPlay("text_input");
+      await settle();
+      expect(stripAnsi(lastFrame()!)).toMatch(/Core 1,000 Collection\s+□ 1\/1/);
+    });
+  });
+
+  describe("the round summary", () => {
+    it("lists each sentence once, by its first attempt", async () => {
+      const { lastFrame, stdin } = renderPlay("text_input");
+      await settle();
+      await press(stdin, "poco", ENTER, ENTER, "mucha", ENTER, ENTER);
+      expect(stripAnsi(lastFrame()!).match(/Tengo mucha hambre\./g)).toHaveLength(1);
+    });
+
+    it("shows the time taken and how to go on", async () => {
+      const { lastFrame, stdin } = renderPlay("text_input");
+      await settle();
+      await press(stdin, "mucha", ENTER, ENTER);
+      const frame = stripAnsi(lastFrame()!);
+      expect(frame).toMatch(/100%\s+0:00/);
+      expect(frame).toContain("enter: next round · esc back");
+    });
+
+    it("says when the daily goal is reached", async () => {
+      vi.mocked(api.saveAnswer).mockResolvedValue({ languagePairing: { ...progress, numPointsToday: 120 } });
+      const { lastFrame, stdin } = renderPlay("text_input");
+      await settle();
+      await press(stdin, "mucha", ENTER, ENTER);
+      expect(stripAnsi(lastFrame()!)).toContain("120/100 points today · goal reached · 12 day streak");
+    });
+
+    it("plays another round with enter", async () => {
+      const { lastFrame, stdin } = renderPlay("text_input");
+      await settle();
+      await press(stdin, "mucha", ENTER, ENTER, ENTER);
+      await settle();
+      expect(api.getRound).toHaveBeenCalledTimes(2);
+      expect(stripAnsi(lastFrame()!)).toContain("Tengo _____ hambre.");
+    });
+  });
+
+  describe("editing the sentence text", () => {
+    beforeEach(() => {
+      vi.spyOn(api, "isProSubscriber").mockResolvedValue(true);
+      vi.mocked(api.getRound).mockResolvedValue({ collection: { isEditable: true }, collectionClozeSentences: [sentence], wordBank: [] });
+    });
+
+    it("saves an edited sentence in the user's own collection", async () => {
+      vi.spyOn(api, "updateSentence").mockResolvedValue();
+      const { lastFrame, stdin } = renderPlay("multiple_choice");
+      await settle();
+      await press(stdin, "c");
+      expect(stripAnsi(lastFrame()!)).toContain("e edit sentence · t edit translation · enter save · esc back");
+      await press(stdin, "e", " Sí.", ENTER, ENTER);
+      expect(api.updateSentence).toHaveBeenCalledWith({
+        sentence: expect.objectContaining({ text: "Tengo {{mucha}} hambre. Sí." }),
+        upsertUrl: "https://example.com/upsert",
+      });
+    });
+
+    it("shows a failure to save the edit", async () => {
+      vi.spyOn(api, "updateSentence").mockRejectedValue(new Error("offline"));
+      const { lastFrame, stdin } = renderPlay("multiple_choice");
+      await settle();
+      await press(stdin, "c", ENTER);
+      await settle();
+      expect(stripAnsi(lastFrame()!)).toContain("offline");
+    });
+
+    it("shows how to finish editing a field", async () => {
+      const { lastFrame, stdin } = renderPlay("multiple_choice");
+      await settle();
+      await press(stdin, "c", "t");
+      expect(stripAnsi(lastFrame()!)).toContain("enter done · esc stop editing");
+      await press(stdin, ESCAPE);
+      expect(stripAnsi(lastFrame()!)).toContain("t edit translation");
+    });
+
+    it("goes back to the card on esc", async () => {
+      const { lastFrame, stdin } = renderPlay("multiple_choice");
+      await settle();
+      await press(stdin, "c", ESCAPE);
+      expect(stripAnsi(lastFrame()!)).toContain("1-4 to answer");
+    });
+
+    it("goes back to the card on esc from the upgrade notice", async () => {
+      vi.mocked(api.isProSubscriber).mockResolvedValue(false);
+      const { lastFrame, stdin } = renderPlay("multiple_choice");
+      await settle();
+      await press(stdin, "c", ESCAPE);
+      expect(stripAnsi(lastFrame()!)).toContain("1-4 to answer");
     });
   });
 });

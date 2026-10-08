@@ -36,3 +36,6 @@ export function showsInColor(frame: string, text: string, color: keyof typeof co
 }
 
 export const stripAnsi = (frame: string) => frame.replace(/\u001b\[[0-9;]*m/g, "");
+
+// The frame on one line, so text Ink wrapped at the terminal's width can be matched whole.
+export const unwrapped = (frame: string) => stripAnsi(frame).split("\n").map((line) => line.trim()).join(" ");
