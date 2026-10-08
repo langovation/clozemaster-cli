@@ -197,12 +197,18 @@ async function deleteSentence(input: SentenceIds) {
   return { deleted: input.sentenceId };
 }
 
+const READ_ONLY = { readOnlyHint: true, openWorldHint: false };
+const CREATES = { destructiveHint: false, idempotentHint: false, openWorldHint: false };
+const REPLACES = { destructiveHint: false, idempotentHint: true, openWorldHint: false };
+const DELETES = { destructiveHint: true, idempotentHint: true, openWorldHint: false };
+
 export function createMcpServer(): McpServer {
   const server = new McpServer({ name: "clozemaster", version: currentVersion }, { instructions: INSTRUCTIONS });
 
   server.registerTool(
     "list_language_pairings",
     {
+      annotations: READ_ONLY,
       description:
         "List the languages the user is learning. Returns [{ id, targetLanguage, baseLanguage }]: targetLanguage is the language being learned (sentence text is written in it), baseLanguage is the learner's own (translations are written in it). Every other tool takes one of these ids as languagePairingId.",
     },
@@ -212,6 +218,7 @@ export function createMcpServer(): McpServer {
   server.registerTool(
     "list_collections",
     {
+      annotations: READ_ONLY,
       description:
         "List the user's own collections in a language pairing, most recently updated first. Returns [{ id, name }]. Only these collections can be read or changed with the sentence tools.",
       inputSchema: { languagePairingId },
@@ -222,6 +229,7 @@ export function createMcpServer(): McpServer {
   server.registerTool(
     "create_collection",
     {
+      annotations: CREATES,
       description: "Create a new, empty collection owned by the user in a language pairing. Returns { id, name }; pass that id as collectionId to add_sentences.",
       inputSchema: { languagePairingId, name: nonEmptyText().describe("Name of the new collection, e.g. `Kitchen words`.") },
     },
@@ -231,6 +239,7 @@ export function createMcpServer(): McpServer {
   server.registerTool(
     "list_sentences",
     {
+      annotations: READ_ONLY,
       description:
         "List the sentences in one of the user's own collections, one page at a time. Returns { sentences: [{ id, text, translation, hint, notes, alternativeAnswers, pronunciation }], page, perPage, total, nextPage }. text marks the hidden word with {{double curly braces}}. nextPage is null on the last page.",
       inputSchema: {
@@ -246,6 +255,7 @@ export function createMcpServer(): McpServer {
   server.registerTool(
     "add_sentences",
     {
+      annotations: CREATES,
       description: `Add up to ${MAX_SENTENCES_PER_CALL} new sentences to one of the user's own collections. Needs Clozemaster Pro. Each sentence's text is in the pairing's targetLanguage with exactly one word wrapped in double curly braces, the single word the learner is meant to learn, e.g. ${CLOZE_EXAMPLE}; translation is the whole sentence in the pairing's baseLanguage (both languages come from list_language_pairings). Each sentence is saved separately: returns { added: [{ index, id, ... }], failed: [{ index, text, error }] }, where index is the position in the sentences array. A sentence fails, for example, when the collection already has the same text.`,
       inputSchema: {
         languagePairingId,
@@ -259,6 +269,7 @@ export function createMcpServer(): McpServer {
   server.registerTool(
     "update_sentence",
     {
+      annotations: REPLACES,
       description: `Replace the text and translation of a sentence in one of the user's own collections. Send both, even if only one changes. text is in the pairing's targetLanguage with exactly one word wrapped in double curly braces, the single word the learner is meant to learn, e.g. ${CLOZE_EXAMPLE}; translation is the whole sentence in the pairing's baseLanguage. Returns { id, text, translation }.`,
       inputSchema: { languagePairingId, collectionId, sentenceId, text: clozeText, translation },
     },
@@ -268,6 +279,7 @@ export function createMcpServer(): McpServer {
   server.registerTool(
     "delete_sentence",
     {
+      annotations: DELETES,
       description: "Permanently delete a sentence from one of the user's own collections. Returns { deleted: sentenceId }.",
       inputSchema: { languagePairingId, collectionId, sentenceId },
     },

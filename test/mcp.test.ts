@@ -101,6 +101,20 @@ describe("MCP server", () => {
     ]);
   });
 
+  it.each([
+    ["list_language_pairings", { readOnlyHint: true, openWorldHint: false }],
+    ["list_collections", { readOnlyHint: true, openWorldHint: false }],
+    ["list_sentences", { readOnlyHint: true, openWorldHint: false }],
+    ["create_collection", { destructiveHint: false, idempotentHint: false, openWorldHint: false }],
+    ["add_sentences", { destructiveHint: false, idempotentHint: false, openWorldHint: false }],
+    ["update_sentence", { destructiveHint: false, idempotentHint: true, openWorldHint: false }],
+    ["delete_sentence", { destructiveHint: true, idempotentHint: true, openWorldHint: false }],
+  ])("annotates %s", async (name, annotations) => {
+    const client = await connectClient();
+    const { tools } = await client.listTools();
+    expect(tools.find((tool) => tool.name === name)?.annotations).toEqual(annotations);
+  });
+
   it("describes the workflow in the server instructions", async () => {
     const client = await connectClient();
     expect(client.getInstructions()).toContain("list_language_pairings");
