@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as api from "../src/api.js";
 import { clearLogin, saveLogin } from "../src/config.js";
+import { currentVersion } from "../src/updateCheck.js";
 
 const pairing = { id: 7 } as api.LanguagePairing;
 const collection = { id: 42, name: "Food" };
@@ -47,6 +48,20 @@ describe("api requests", () => {
         "Time-Zone": Intl.DateTimeFormat().resolvedOptions().timeZone,
         "Time-Zone-Offset-Hours": String(-new Date().getTimezoneOffset() / 60),
       });
+    });
+
+    it("identifies requests as coming from the CLI by default", async () => {
+      const fetch = stubFetch(200, { user: { isPro: true } });
+      await api.isProSubscriber();
+      expect(lastRequest(fetch).headers["Clozemaster-Client"]).toBe(`cli/${currentVersion}`);
+    });
+
+    it("identifies requests as coming from the MCP server once it says so", async () => {
+      api.identifyClientAs("mcp");
+      const fetch = stubFetch(200, { user: { isPro: true } });
+      await api.isProSubscriber();
+      expect(lastRequest(fetch).headers["Clozemaster-Client"]).toBe(`mcp/${currentVersion}`);
+      api.identifyClientAs("cli");
     });
 
     it("sends the saved login's token when no token is set in the environment", async () => {

@@ -1,4 +1,5 @@
 import { baseUrl, getAuthToken } from "./config.js";
+import { currentVersion } from "./updateCheck.js";
 
 export type LanguagePairing = {
   id: number;
@@ -142,11 +143,20 @@ type RequestOptions = {
   query?: Record<string, string>;
 };
 
+export type ClientName = "cli" | "mcp";
+
+let clientName: ClientName = "cli";
+
+export function identifyClientAs(name: ClientName) {
+  clientName = name;
+}
+
 function requestHeaders(): Record<string, string> {
   const authToken = getAuthToken();
   const cookie = process.env.CLOZEMASTER_COOKIE;
   return {
     Accept: "application/json",
+    "Clozemaster-Client": `${clientName}/${currentVersion}`,
     "Content-Type": "application/json",
     "Time-Zone": Intl.DateTimeFormat().resolvedOptions().timeZone,
     "Time-Zone-Offset-Hours": String(-new Date().getTimezoneOffset() / 60),

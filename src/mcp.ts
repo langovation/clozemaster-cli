@@ -10,6 +10,7 @@ import {
   getCollectionSentences,
   getLanguagePairings,
   getOwnCollections,
+  identifyClientAs,
   isApiError,
   isProSubscriber,
   ProRequiredError,
@@ -308,6 +309,7 @@ export function createMcpServer(): McpServer {
 }
 
 export async function startMcpServer() {
+  identifyClientAs("mcp");
   await createMcpServer().connect(new StdioServerTransport());
   console.error("Clozemaster MCP server running on stdio");
 }
