@@ -10,10 +10,16 @@ export type AnsweredSentence = { answer: string; isCorrect: boolean; points: num
 
 type SentenceCardProps = { answered?: AnsweredSentence; hintedLetters?: string; isRevealed?: boolean; sentence: Sentence };
 
+const MIN_BLANK_LENGTH = 3;
+
 function Blank({ answered, cloze, hintedLetters = "", isRevealed }: { answered?: AnsweredSentence; cloze: string; hintedLetters?: string; isRevealed?: boolean }) {
   if (answered) return <Text bold color={answered.isCorrect ? colors.brand : colors.danger}>{answered.answer || cloze}</Text>;
   if (isRevealed) return <Text bold>{cloze}</Text>;
-  return <Text color={colors.brand}>{hintedLetters}{"_".repeat(Math.max(cloze.length - hintedLetters.length, 3 - hintedLetters.length, 0))}</Text>;
+  return <Text color={colors.brand}>{hintedLetters}{"_".repeat(blankLength(cloze, hintedLetters))}</Text>;
+}
+
+function blankLength(cloze: string, hintedLetters: string): number {
+  return Math.max(Math.max(cloze.length, MIN_BLANK_LENGTH) - hintedLetters.length, 0);
 }
 
 function MasteryChecks({ level }: { level: number }) {
@@ -27,6 +33,10 @@ function MasteryChecks({ level }: { level: number }) {
   );
 }
 
+function masteryLevel(sentence: Sentence, answered?: AnsweredSentence): number {
+  return answered ? levelAfterAnswer({ correct: answered.isCorrect, sentence }) : sentence.level || 0;
+}
+
 export function SentenceCard({ answered, hintedLetters, isRevealed, sentence }: SentenceCardProps) {
   const { settings } = useSettings();
   const { after, before, cloze } = splitCloze(sentence.text);
@@ -36,9 +46,7 @@ export function SentenceCard({ answered, hintedLetters, isRevealed, sentence }: 
   return (
     <Box flexDirection="column">
       <Box borderStyle="round" borderColor={colors.subtle} flexDirection="column" paddingX={1}>
-        {(answered || settings.masteryBeforeAnswering) && (
-          <MasteryChecks level={answered ? levelAfterAnswer({ correct: answered.isCorrect, sentence }) : sentence.level || 0} />
-        )}
+        {(answered || settings.masteryBeforeAnswering) && <MasteryChecks level={masteryLevel(sentence, answered)} />}
         {settings.hints && !isDone && sentence.hint && <Text color={colors.gold}>hint: {sentence.hint}</Text>}
         <Text>
           {before}

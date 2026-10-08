@@ -36,7 +36,11 @@ function Stat({ color, label, value }: { color?: string; label: string; value: s
 // A sentence counts by its first attempt, the same as the apps' results list.
 function firstAttempts(results: RoundResult[]): RoundResult[] {
   const seen = new Set<number>();
-  return results.filter(({ sentence }) => !seen.has(sentence.id) && seen.add(sentence.id));
+  return results.filter(({ sentence }) => {
+    if (seen.has(sentence.id)) return false;
+    seen.add(sentence.id);
+    return true;
+  });
 }
 
 function PlayedSentence({ result }: { result: RoundResult }) {
@@ -48,6 +52,19 @@ function PlayedSentence({ result }: { result: RoundResult }) {
         <ClozeSentence color={resultColor} text={result.sentence.text} />
       </Text>
       <Text dimColor wrap="truncate-end">  {result.sentence.translation}</Text>
+    </Box>
+  );
+}
+
+function RoundStats({ elapsedSeconds, results }: { elapsedSeconds: number; results: RoundResult[] }) {
+  const numCorrect = results.filter((result) => result.isCorrect).length;
+  const accuracy = results.length ? Math.round((numCorrect / results.length) * 100) : 0;
+  return (
+    <Box borderStyle="round" borderColor={colors.subtle}>
+      <Stat color={colors.brand} label="Correct" value={String(numCorrect)} />
+      <Stat color={colors.danger} label="Incorrect" value={String(results.length - numCorrect)} />
+      <Stat label="Accuracy" value={`${accuracy}%`} />
+      <Stat label="Time" value={formatTime(elapsedSeconds)} />
     </Box>
   );
 }
@@ -77,9 +94,6 @@ export function RoundSummary({ elapsedSeconds, onMenu, onPlayAgain, progress, re
     if (key.escape) onMenu();
   });
 
-  const numCorrect = results.filter((result) => result.isCorrect).length;
-  const numIncorrect = results.length - numCorrect;
-  const accuracy = results.length ? Math.round((numCorrect / results.length) * 100) : 0;
   const points = results.reduce((sum, result) => sum + result.points, 0);
 
   return (
@@ -91,12 +105,7 @@ export function RoundSummary({ elapsedSeconds, onMenu, onPlayAgain, progress, re
           <Text color={colors.gold}>+{points} points</Text>
         </Box>
       </Box>
-      <Box borderStyle="round" borderColor={colors.subtle}>
-        <Stat color={colors.brand} label="Correct" value={String(numCorrect)} />
-        <Stat color={colors.danger} label="Incorrect" value={String(numIncorrect)} />
-        <Stat label="Accuracy" value={`${accuracy}%`} />
-        <Stat label="Time" value={formatTime(elapsedSeconds)} />
-      </Box>
+      <RoundStats elapsedSeconds={elapsedSeconds} results={results} />
       {progress && <DailyGoal progress={progress} />}
       <Box flexDirection="column">
         {firstAttempts(results).map((result) => (

@@ -12,8 +12,7 @@ const SECTION_LABELS: Record<StructuredExplanation["sections"][number]["type"], 
   register: "Register",
 };
 
-function Word({ word }: { word: ExplanationWord }) {
-  const tags = [word.pos, ...word.features.map((feature) => feature.replace(/_/g, " "))].join(", ");
+function BreakdownWord({ word }: { word: ExplanationWord }) {
   return (
     <Box flexDirection="column">
       <Text>
@@ -23,8 +22,8 @@ function Word({ word }: { word: ExplanationWord }) {
       </Text>
       <Box paddingLeft={2} flexDirection="column">
         <Text dimColor>
-          {word.lemma.toLowerCase() !== word.surface.toLowerCase() ? `${word.lemma} · ` : ""}
-          {tags}
+          {isInflected(word) ? `${word.lemma} · ` : ""}
+          {grammarTags(word)}
         </Text>
         {word.note && <Text>{word.note}</Text>}
       </Box>
@@ -32,7 +31,15 @@ function Word({ word }: { word: ExplanationWord }) {
   );
 }
 
-function Block({ children, label }: { children: React.ReactNode; label: string }) {
+function isInflected(word: ExplanationWord): boolean {
+  return word.lemma.toLowerCase() !== word.surface.toLowerCase();
+}
+
+function grammarTags(word: ExplanationWord): string {
+  return [word.pos, ...word.features.map((feature) => feature.replace(/_/g, " "))].join(", ");
+}
+
+function LabelledSection({ children, label }: { children: React.ReactNode; label: string }) {
   return (
     <Box flexDirection="column">
       <Text bold color={colors.gold}>{label}</Text>
@@ -41,8 +48,7 @@ function Block({ children, label }: { children: React.ReactNode; label: string }
   );
 }
 
-// Mirrors the mobile app's explanation sheet.
-function Structured({ explanation }: { explanation: StructuredExplanation }) {
+function StructuredExplanationView({ explanation }: { explanation: StructuredExplanation }) {
   return (
     <Box flexDirection="column" gap={1}>
       <Box flexDirection="column">
@@ -51,13 +57,13 @@ function Structured({ explanation }: { explanation: StructuredExplanation }) {
       </Box>
       <Box flexDirection="column">
         {explanation.breakdown.map((word, index) => (
-          <Word key={`${word.surface}-${index}`} word={word} />
+          <BreakdownWord key={`${word.surface}-${index}`} word={word} />
         ))}
       </Box>
-      {explanation.literalTranslation && <Block label="Literally"><Text>{explanation.literalTranslation}</Text></Block>}
-      {explanation.alternative && <Block label="Alternative"><Text>{explanation.alternative}</Text></Block>}
+      {explanation.literalTranslation && <LabelledSection label="Literally"><Text>{explanation.literalTranslation}</Text></LabelledSection>}
+      {explanation.alternative && <LabelledSection label="Alternative"><Text>{explanation.alternative}</Text></LabelledSection>}
       {explanation.sections.map((section, index) => (
-        <Block key={index} label={SECTION_LABELS[section.type]}>
+        <LabelledSection key={index} label={SECTION_LABELS[section.type]}>
           <Text>{section.body}</Text>
           {section.examples.map((example) => (
             <Text key={example.text}>
@@ -65,7 +71,7 @@ function Structured({ explanation }: { explanation: StructuredExplanation }) {
               <Text dimColor> - {example.translation}</Text>
             </Text>
           ))}
-        </Block>
+        </LabelledSection>
       ))}
     </Box>
   );
@@ -75,14 +81,14 @@ export function canExplain(sentence: Sentence): boolean {
   return Boolean(sentence.structuredExplanation || sentence.explanation || sentence.explanationJobUrl);
 }
 
-// Room left for the explanation once the sentence, hints and borders are on screen.
 const ROWS_AROUND_EXPLANATION = 16;
 const MIN_VISIBLE_ROWS = 6;
+const DEFAULT_TERMINAL_ROWS = 24;
 
 // Ink can't scroll, so a long explanation is clipped to the terminal and moved with the arrows.
 function Scrollable({ children }: { children: React.ReactNode }) {
   const { stdout } = useStdout();
-  const visibleRows = Math.max(MIN_VISIBLE_ROWS, (stdout.rows || 24) - ROWS_AROUND_EXPLANATION);
+  const visibleRows = Math.max(MIN_VISIBLE_ROWS, (stdout.rows || DEFAULT_TERMINAL_ROWS) - ROWS_AROUND_EXPLANATION);
   const content = useRef<DOMElement>(null);
   const [contentRows, setContentRows] = useState(0);
   const [scrolledRows, setScrolledRows] = useState(0);
@@ -116,7 +122,7 @@ export function ExplanationPanel({ sentence }: { sentence: Sentence }) {
       {isLoading && <Spinner label="Explaining… this may take a few seconds" />}
       {error && <ErrorMessage error={error} />}
       <Scrollable>
-        {explanation?.structured && <Structured explanation={explanation.structured} />}
+        {explanation?.structured && <StructuredExplanationView explanation={explanation.structured} />}
         {explanation && !explanation.structured && <Text>{explanation.text}</Text>}
       </Scrollable>
     </Box>
