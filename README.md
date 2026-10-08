@@ -12,6 +12,17 @@ curl -fsSL https://www.clozemaster.com/install-cli.sh | sh
 
 Then type `clozemaster` to play.
 
+### Uninstall
+
+```sh
+clozemaster logout
+claude mcp remove clozemaster   # only if you added it to Claude Code
+rm ~/.local/bin/clozemaster
+rm -rf ~/.config/clozemaster ~/.cache/clozemaster
+```
+
+If `~/.local/bin` wasn't already on your `PATH`, the installer added a line like `export PATH="/Users/you/.local/bin:$PATH"` to your shell profile: `~/.zshrc` for zsh, `~/.bash_profile` for bash on macOS, `~/.bashrc` for bash on Linux, or `~/.profile` for other shells. Delete that line if nothing else needs it.
+
 ## Run from source
 
 Needs Node 20 or newer.
