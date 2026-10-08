@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 import { Box, Text, useInput } from "ink";
-import type { AnswerResult, Sentence } from "../api.js";
+import type { LanguagePairingProgress, Sentence } from "../api.js";
 import { playSoundEffect } from "../audio.js";
 import { ClozeSentence } from "../components/ClozeSentence.js";
 import { Hints } from "../components/Hints.js";
@@ -16,7 +16,7 @@ type RoundSummaryProps = {
   elapsedSeconds: number;
   onMenu: () => void;
   onPlayAgain: () => void;
-  progress?: AnswerResult["languagePairing"];
+  progress?: LanguagePairingProgress;
   results: RoundResult[];
 };
 
@@ -52,7 +52,7 @@ function PlayedSentence({ result }: { result: RoundResult }) {
   );
 }
 
-function DailyGoal({ progress }: { progress: AnswerResult["languagePairing"] }) {
+function DailyGoal({ progress }: { progress: LanguagePairingProgress }) {
   const goal = progress.dailyGoalPointsPerDay;
   const hasReachedGoal = Boolean(goal && progress.numPointsToday >= goal);
   return (

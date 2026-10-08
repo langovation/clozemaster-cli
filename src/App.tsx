@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Box, useStdout } from "ink";
-import type { AnswerResult, LanguagePairing, PlayMode } from "./api.js";
+import type { LanguagePairing, LanguagePairingProgress, PlayMode } from "./api.js";
 import { getStoredUsername, hasLogin } from "./config.js";
 import { nextMode } from "./playModes.js";
 import type { RoundChoice } from "./roundChoice.js";
@@ -40,7 +40,7 @@ function Screens({ forceLogin }: { forceLogin: boolean }) {
   const [isCapturing, setIsCapturing] = useState(false);
 
   const toggleMode = () => setMode((current) => current && nextMode(current));
-  const updatePairingProgress = (progress: AnswerResult["languagePairing"]) =>
+  const updatePairingProgress = (progress: LanguagePairingProgress) =>
     setPairing((current) => current && { ...current, ...progress });
 
   if (!isLoggedIn) {

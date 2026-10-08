@@ -82,15 +82,15 @@ function apiModeAndSkill(mode: PlayMode) {
   return { mode, skill: "vocabulary" };
 }
 
-export type AnswerResult = {
-  languagePairing: {
-    currentStreakDays: number;
-    dailyGoalPointsPerDay: number | null;
-    level: number;
-    numPointsToday: number;
-    score: number;
-  };
+export type LanguagePairingProgress = {
+  currentStreakDays: number;
+  dailyGoalPointsPerDay: number | null;
+  level: number;
+  numPointsToday: number;
+  score: number;
 };
+
+export type AnswerResult = { languagePairing: LanguagePairingProgress };
 
 export type QuickCaptureEntry = {
   id: string;
