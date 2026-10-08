@@ -54,6 +54,10 @@ open_web_version_pr() {
   branch="release-cli-$tag"
   worktree="$(mktemp -d)/web"
   git -C "$web_repo" fetch -q origin
+  if [ "$(git -C "$web_repo" show origin/master:lib/cli/cli-version.txt)" = "$version" ]; then
+    echo "The web repo already announces $version."
+    return
+  fi
   git -C "$web_repo" worktree add -q -b "$branch" "$worktree" origin/master
   echo "$version" > "$worktree/lib/cli/cli-version.txt"
   git -C "$worktree" commit -qam "chore: tell CLIs that $tag is out"
