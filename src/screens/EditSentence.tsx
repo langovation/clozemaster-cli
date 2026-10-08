@@ -7,9 +7,9 @@ import { ErrorMessage } from "../components/ErrorMessage.js";
 import { Hints } from "../components/Hints.js";
 import { Spinner } from "../components/Spinner.js";
 import { colors } from "../theme.js";
+import { CLOZE_SENTENCE_PLACEHOLDER, FIELD_EDITING_HINTS, useEditedField } from "../useEditedField.js";
 import { useRequest } from "../useRequest.js";
-
-type EditedField = "text" | "translation";
+import { useSubmission } from "../useSubmission.js";
 
 type EditSentenceProps = {
   isTextEditable: boolean;
@@ -29,53 +29,46 @@ export function EditSentence(props: EditSentenceProps) {
 
   if (isLoading) return <Spinner label="Loading…" />;
   if (error) return <ErrorMessage error={error} />;
-  if (!isPro) {
-    return (
-      <Box flexDirection="column" gap={1}>
-        <ErrorMessage error={new ProRequiredError("Editing sentences needs Clozemaster Pro.", "edit_sentence")} />
-        <Hints hints={["esc back"]} />
-      </Box>
-    );
-  }
+  if (!isPro) return <EditingNeedsPro />;
   return <SentenceEditor {...props} />;
+}
+
+function EditingNeedsPro() {
+  return (
+    <Box flexDirection="column" gap={1}>
+      <ErrorMessage error={new ProRequiredError("Editing sentences needs Clozemaster Pro.", "edit_sentence")} />
+      <Hints hints={["esc back"]} />
+    </Box>
+  );
 }
 
 function SentenceEditor({ isTextEditable, onBack, onDeleted, onSaved, sentence, upsertUrl }: EditSentenceProps) {
   const [text, setText] = useState(sentence.text);
   const [translation, setTranslation] = useState(sentence.translation);
-  const [editedField, setEditedField] = useState<EditedField>();
-  const [isSaving, setIsSaving] = useState(false);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
-  const [saveError, setSaveError] = useState<Error>();
+  const { editedField, editField, stopEditing } = useEditedField<"text" | "translation">();
+  const { error: saveError, isSubmitting: isSaving, submit } = useSubmission();
   const canDelete = isTextEditable && Boolean(sentence.url);
 
-  async function save() {
-    setIsSaving(true);
+  function save() {
     const edited = { ...sentence, text, translation };
-    try {
+    submit(async () => {
       await updateSentence({ sentence: edited, upsertUrl });
       onSaved(edited);
-    } catch (error) {
-      setSaveError(error as Error);
-      setIsSaving(false);
-    }
+    });
   }
 
-  async function remove() {
-    setIsSaving(true);
-    try {
+  function remove() {
+    submit(async () => {
       await deleteSentence(sentence);
       onDeleted(sentence);
-    } catch (error) {
-      setSaveError(error as Error);
-      setIsSaving(false);
-    }
+    });
   }
 
   useInput((input, key) => {
     if (key.escape) return onBack();
-    if (isTextEditable && input === "e") setEditedField("text");
-    if (input === "t") setEditedField("translation");
+    if (isTextEditable && input === "e") editField("text");
+    if (input === "t") editField("translation");
     if (canDelete && input === "d") setIsConfirmingDelete(true);
     if (key.return) save();
   }, { isActive: !editedField && !isSaving && !isConfirmingDelete });
@@ -85,20 +78,18 @@ function SentenceEditor({ isTextEditable, onBack, onDeleted, onSaved, sentence, 
     else setIsConfirmingDelete(false);
   }, { isActive: isConfirmingDelete && !isSaving });
 
-  useInput((_input, key) => {
-    if (key.escape) setEditedField(undefined);
-  }, { isActive: Boolean(editedField) });
+  const menuHints = [...(isTextEditable ? ["e edit sentence"] : []), "t edit translation", ...(canDelete ? ["d delete"] : []), "enter save", "esc back"];
 
   return (
     <Box flexDirection="column" gap={1}>
       <Box borderStyle="round" borderColor={colors.subtle} flexDirection="column" paddingX={1}>
         {editedField === "text" ? (
-          <TextInput onChange={setText} onSubmit={() => setEditedField(undefined)} placeholder="sentence, with {{ }} around the hidden word" value={text} />
+          <TextInput onChange={setText} onSubmit={stopEditing} placeholder={CLOZE_SENTENCE_PLACEHOLDER} value={text} />
         ) : (
           <ClozeSentence text={text} />
         )}
         {editedField === "translation" ? (
-          <TextInput onChange={setTranslation} onSubmit={() => setEditedField(undefined)} placeholder="translation" value={translation} />
+          <TextInput onChange={setTranslation} onSubmit={stopEditing} placeholder="translation" value={translation} />
         ) : (
           <Text dimColor>{translation}</Text>
         )}
@@ -107,13 +98,7 @@ function SentenceEditor({ isTextEditable, onBack, onDeleted, onSaved, sentence, 
       {isConfirmingDelete && !isSaving && <Text color={colors.danger}>Delete this sentence from the collection? y to delete, any other key to keep it</Text>}
       {isSaving && <Spinner label="Saving…" />}
       {saveError && <ErrorMessage error={saveError} />}
-      <Hints
-        hints={
-          editedField
-            ? ["enter done", "esc stop editing"]
-            : [...(isTextEditable ? ["e edit sentence"] : []), "t edit translation", ...(canDelete ? ["d delete"] : []), "enter save", "esc back"]
-        }
-      />
+      <Hints hints={editedField ? FIELD_EDITING_HINTS : menuHints} />
     </Box>
   );
 }

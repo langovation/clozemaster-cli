@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { Box, Text, useInput } from "ink";
 import { Hints } from "../components/Hints.js";
+import { ListRow } from "../components/ListRow.js";
+import { cycledIndex } from "../cycle.js";
 import type { Settings, TranslationVisibility } from "../settings.js";
 import { useSettings } from "../SettingsContext.js";
 import { colors } from "../theme.js";
@@ -35,19 +37,21 @@ function valueLabel(value: Settings[keyof Settings]): string {
   return TRANSLATION_LABELS[value];
 }
 
+function cycledValue(row: SettingRow, settings: Settings, step: number): Settings[keyof Settings] {
+  return row.values[cycledIndex(row.values.indexOf(settings[row.key]), step, row.values.length)];
+}
+
 export function SettingsScreen({ onBack }: { onBack: () => void }) {
   const { settings, updateSettings } = useSettings();
   const [highlighted, setHighlighted] = useState(0);
 
   useInput((input, key) => {
     if (key.escape || input === "q") onBack();
-    if (key.upArrow || input === "k") setHighlighted((index) => (index - 1 + ROWS.length) % ROWS.length);
-    if (key.downArrow || input === "j") setHighlighted((index) => (index + 1) % ROWS.length);
+    if (key.upArrow || input === "k") setHighlighted((index) => cycledIndex(index, -1, ROWS.length));
+    if (key.downArrow || input === "j") setHighlighted((index) => cycledIndex(index, 1, ROWS.length));
     if (key.return || input === " " || key.rightArrow || key.leftArrow) {
       const row = ROWS[highlighted];
-      const step = key.leftArrow ? -1 : 1;
-      const next = row.values[(row.values.indexOf(settings[row.key]) + step + row.values.length) % row.values.length];
-      updateSettings({ [row.key]: next });
+      updateSettings({ [row.key]: cycledValue(row, settings, key.leftArrow ? -1 : 1) });
     }
   });
 
@@ -58,15 +62,9 @@ export function SettingsScreen({ onBack }: { onBack: () => void }) {
         {ROWS.map((row, index) => {
           const isHighlighted = index === highlighted;
           return (
-            <Box key={row.key} justifyContent="space-between" gap={2}>
-              <Text color={isHighlighted ? colors.brand : undefined} wrap="truncate-end">
-                {isHighlighted ? "❯ " : "  "}
-                {row.label}
-              </Text>
-              <Box flexShrink={0}>
-                <Text bold={isHighlighted} color={isHighlighted ? colors.brand : undefined}>{valueLabel(settings[row.key])}</Text>
-              </Box>
-            </Box>
+            <ListRow key={row.key} isHighlighted={isHighlighted} label={row.label}>
+              <Text bold={isHighlighted} color={isHighlighted ? colors.brand : undefined}>{valueLabel(settings[row.key])}</Text>
+            </ListRow>
           );
         })}
       </Box>

@@ -1,99 +1,50 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useState } from "react";
 import { Box, Text, useInput } from "ink";
 import TextInput from "ink-text-input";
-import {
-  addQuickCaptureEntry,
-  deleteQuickCaptureEntry,
-  getQuickCaptureEntries,
-  type LanguagePairing,
-  type OwnCollection,
-  type QuickCaptureEntry,
-} from "../api.js";
+import type { LanguagePairing, OwnCollection, QuickCaptureEntry } from "../api.js";
 import { ClozeSentence } from "../components/ClozeSentence.js";
 import { ErrorMessage } from "../components/ErrorMessage.js";
 import { Hints } from "../components/Hints.js";
+import { ListRow } from "../components/ListRow.js";
 import { Spinner } from "../components/Spinner.js";
+import { cycledIndex } from "../cycle.js";
 import { colors } from "../theme.js";
+import { useQuickCaptureEntries } from "../useQuickCaptureEntries.js";
 import { EditQuickCaptureEntry } from "./EditQuickCaptureEntry.js";
 import { ImportQuickCapture } from "./ImportQuickCapture.js";
 
-const POLL_INTERVAL_MS = 3000;
-
-const isSettled = (entry: QuickCaptureEntry) => entry.status === "processed" || entry.status === "failed";
-
-function entryDetail(entry: QuickCaptureEntry): string {
-  if (entry.status === "failed") return "failed";
-  if (entry.status === "processed") return entry.translation || "";
-  return "translating…";
-}
+const LIST_HINTS = ["↑↓ to move", "enter edit sentence", "i import all", "d delete", "tab to type", "esc back"];
+const INPUT_HINTS = ["enter to save", "tab to pick a word", "esc back"];
 
 type QuickCaptureProps = { onBack: () => void; pairing: LanguagePairing };
 
 export function QuickCapture({ onBack, pairing }: QuickCaptureProps) {
-  const [entries, setEntries] = useState<QuickCaptureEntry[]>();
-  const [error, setError] = useState<Error>();
+  const { addEntry, deleteEntry, entries, error, replaceEntry, showEntries } = useQuickCaptureEntries(pairing);
   const [text, setText] = useState("");
   const [isListFocused, setIsListFocused] = useState(false);
   const [highlighted, setHighlighted] = useState(0);
   const [entriesToImport, setEntriesToImport] = useState<QuickCaptureEntry[]>();
   const [importNotice, setImportNotice] = useState<string>();
   const [editedEntry, setEditedEntry] = useState<QuickCaptureEntry>();
-  const changeCount = useRef(0);
 
-  // A load that started before an add or delete would bring back the old list, so it's dropped.
-  async function loadEntries() {
-    const changeCountAtStart = changeCount.current;
-    try {
-      const loaded = await getQuickCaptureEntries(pairing);
-      if (changeCountAtStart === changeCount.current) setEntries(loaded);
-    } catch (loadError) {
-      setError(loadError as Error);
-    }
-  }
-
-  useEffect(() => {
-    loadEntries();
-  }, [pairing.id]);
-
-  const isTranslating = entries?.some((entry) => !isSettled(entry));
-  useEffect(() => {
-    if (!isTranslating) return;
-    const timer = setTimeout(loadEntries, POLL_INTERVAL_MS);
-    return () => clearTimeout(timer);
-  }, [entries]);
-
-  async function addEntry(submitted: string) {
+  function saveTypedEntry(submitted: string) {
     const trimmed = submitted.trim();
     if (!trimmed) return;
     setText("");
-    changeCount.current++;
-    try {
-      const entry = await addQuickCaptureEntry(pairing, trimmed);
-      setEntries((current = []) => [entry, ...current.filter((existing) => existing.id !== entry.id)]);
-      setError(undefined);
-    } catch (addError) {
-      setError(addError as Error);
-    }
+    addEntry(trimmed);
   }
 
-  async function deleteHighlightedEntry(list: QuickCaptureEntry[]) {
-    const entry = list[highlighted];
-    const remaining = list.filter((existing) => existing.id !== entry.id);
-    changeCount.current++;
-    setEntries(remaining);
-    setHighlighted(Math.max(0, Math.min(highlighted, remaining.length - 1)));
-    if (remaining.length === 0) setIsListFocused(false);
-    try {
-      await deleteQuickCaptureEntry(entry);
-    } catch (deleteError) {
-      setError(deleteError as Error);
-    }
+  function deleteHighlightedEntry(list: QuickCaptureEntry[]) {
+    const remainingCount = list.length - 1;
+    deleteEntry(list[highlighted]);
+    setHighlighted(Math.max(0, Math.min(highlighted, remainingCount - 1)));
+    if (remainingCount === 0) setIsListFocused(false);
   }
 
   function finishImport(collection: OwnCollection) {
     const importedIds = new Set(entriesToImport!.map((entry) => entry.id));
     const remaining = (entries || []).filter((entry) => !importedIds.has(entry.id));
-    setEntries(remaining);
+    showEntries(remaining);
     setHighlighted(0);
     setIsListFocused(remaining.length > 0);
     setImportNotice(`Importing ${importedIds.size} into ${collection.name}. They'll show up there in a minute.`);
@@ -101,8 +52,7 @@ export function QuickCapture({ onBack, pairing }: QuickCaptureProps) {
   }
 
   function finishEditing(saved: QuickCaptureEntry) {
-    changeCount.current++;
-    setEntries((current = []) => current.map((entry) => (entry.id === saved.id ? saved : entry)));
+    replaceEntry(saved);
     setEditedEntry(undefined);
   }
 
@@ -110,15 +60,14 @@ export function QuickCapture({ onBack, pairing }: QuickCaptureProps) {
     if (key.escape) return onBack();
     if (key.tab) return setIsListFocused((isFocused) => !isFocused && Boolean(entries?.length));
     if (!isListFocused || !entries?.length) return;
-    if (key.upArrow) setHighlighted((index) => (index - 1 + entries.length) % entries.length);
-    if (key.downArrow) setHighlighted((index) => (index + 1) % entries.length);
+    if (key.upArrow) setHighlighted((index) => cycledIndex(index, -1, entries.length));
+    if (key.downArrow) setHighlighted((index) => cycledIndex(index, 1, entries.length));
     if (input === "d") deleteHighlightedEntry(entries);
     if (input === "i") setEntriesToImport(entries);
     if (key.return) setEditedEntry(entries[highlighted]);
   }, { isActive: !entriesToImport && !editedEntry });
 
   if (editedEntry) return <EditQuickCaptureEntry entry={editedEntry} onBack={() => setEditedEntry(undefined)} onSaved={finishEditing} />;
-
   if (entriesToImport) {
     return <ImportQuickCapture entries={entriesToImport} onBack={() => setEntriesToImport(undefined)} onImported={finishImport} pairing={pairing} />;
   }
@@ -131,7 +80,7 @@ export function QuickCapture({ onBack, pairing }: QuickCaptureProps) {
       </Box>
       <Box>
         <Text color={colors.brand}>❯ </Text>
-        <TextInput focus={!isListFocused} onChange={setText} onSubmit={addEntry} placeholder="type a word or phrase" value={text} />
+        <TextInput focus={!isListFocused} onChange={setText} onSubmit={saveTypedEntry} placeholder="type a word or phrase" value={text} />
       </Box>
       {error && <ErrorMessage error={error} />}
       {importNotice && <Text color={colors.brand}>{importNotice}</Text>}
@@ -139,33 +88,37 @@ export function QuickCapture({ onBack, pairing }: QuickCaptureProps) {
       {entries?.length === 0 && <Text dimColor>Nothing captured yet.</Text>}
       {entries && entries.length > 0 && (
         <Box flexDirection="column">
-          {entries.map((entry, index) => {
-            const isHighlighted = isListFocused && index === highlighted;
-            return (
-              <Box key={entry.id} flexDirection="column">
-                <Box justifyContent="space-between" gap={2}>
-                  <Text color={isHighlighted ? colors.brand : undefined} wrap="truncate-end">
-                    {isHighlighted ? "❯ " : "  "}
-                    {entry.text}
-                  </Text>
-                  <Box flexShrink={0}>
-                    <Text color={entry.status === "failed" ? colors.danger : undefined} dimColor={entry.status !== "failed"}>
-                      {entryDetail(entry)}
-                    </Text>
-                  </Box>
-                </Box>
-                {isHighlighted && entry.sentence && (
-                  <Box flexDirection="column" paddingLeft={4}>
-                    <ClozeSentence text={entry.sentence} />
-                    {entry.sentenceTranslation && <Text dimColor>{entry.sentenceTranslation}</Text>}
-                  </Box>
-                )}
-              </Box>
-            );
-          })}
+          {entries.map((entry, index) => (
+            <EntryRow key={entry.id} entry={entry} isHighlighted={isListFocused && index === highlighted} />
+          ))}
         </Box>
       )}
-      <Hints hints={isListFocused ? ["↑↓ to move", "enter edit sentence", "i import all", "d delete", "tab to type", "esc back"] : ["enter to save", "tab to pick a word", "esc back"]} />
+      <Hints hints={isListFocused ? LIST_HINTS : INPUT_HINTS} />
     </Box>
   );
+}
+
+function EntryRow({ entry, isHighlighted }: { entry: QuickCaptureEntry; isHighlighted: boolean }) {
+  const hasFailed = entry.status === "failed";
+  return (
+    <Box flexDirection="column">
+      <ListRow isHighlighted={isHighlighted} label={entry.text}>
+        <Text color={hasFailed ? colors.danger : undefined} dimColor={!hasFailed}>
+          {entryStatus(entry)}
+        </Text>
+      </ListRow>
+      {isHighlighted && entry.sentence && (
+        <Box flexDirection="column" paddingLeft={4}>
+          <ClozeSentence text={entry.sentence} />
+          {entry.sentenceTranslation && <Text dimColor>{entry.sentenceTranslation}</Text>}
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+function entryStatus(entry: QuickCaptureEntry): string {
+  if (entry.status === "failed") return "failed";
+  if (entry.status === "processed") return entry.translation || "";
+  return "translating…";
 }

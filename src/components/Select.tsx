@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { Box, Text, useInput } from "ink";
+import { cycledIndex } from "../cycle.js";
 import { colors } from "../theme.js";
+import { ListRow } from "./ListRow.js";
 
 export type SelectItem<T> = { detail?: string; label: string; value: T };
 
@@ -10,33 +12,28 @@ export function Select<T>({ items, onSelect }: { items: SelectItem<T>[]; onSelec
   const [highlighted, setHighlighted] = useState(0);
 
   useInput((input, key) => {
-    if (key.upArrow || input === "k") setHighlighted((index) => (index - 1 + items.length) % items.length);
-    if (key.downArrow || input === "j") setHighlighted((index) => (index + 1) % items.length);
+    if (key.upArrow || input === "k") setHighlighted((index) => cycledIndex(index, -1, items.length));
+    if (key.downArrow || input === "j") setHighlighted((index) => cycledIndex(index, 1, items.length));
     if (key.return && items[highlighted]) onSelect(items[highlighted].value);
   });
 
-  const firstVisible = Math.min(Math.max(highlighted - VISIBLE_ITEMS + 1, 0), Math.max(items.length - VISIBLE_ITEMS, 0));
-  const visibleItems = items.slice(firstVisible, firstVisible + VISIBLE_ITEMS);
+  const firstVisible = firstVisibleIndex(highlighted, items.length);
 
   return (
     <Box flexDirection="column">
-      {visibleItems.map((item, offset) => {
+      {items.slice(firstVisible, firstVisible + VISIBLE_ITEMS).map((item, offset) => {
         const isHighlighted = firstVisible + offset === highlighted;
         return (
-          <Box key={firstVisible + offset} justifyContent="space-between" gap={2}>
-            <Text color={isHighlighted ? colors.brand : undefined} wrap="truncate-end">
-              {isHighlighted ? "❯ " : "  "}
-              {item.label}
-            </Text>
-            {item.detail && (
-              <Box flexShrink={0}>
-                <Text color={isHighlighted ? colors.brand : undefined} dimColor={!isHighlighted}>{item.detail}</Text>
-              </Box>
-            )}
-          </Box>
+          <ListRow key={firstVisible + offset} isHighlighted={isHighlighted} label={item.label}>
+            {item.detail ? <Text color={isHighlighted ? colors.brand : undefined} dimColor={!isHighlighted}>{item.detail}</Text> : undefined}
+          </ListRow>
         );
       })}
       {items.length > VISIBLE_ITEMS && <Text dimColor>  {highlighted + 1}/{items.length}</Text>}
     </Box>
   );
+}
+
+function firstVisibleIndex(highlighted: number, itemCount: number): number {
+  return Math.min(Math.max(highlighted - VISIBLE_ITEMS + 1, 0), Math.max(itemCount - VISIBLE_ITEMS, 0));
 }

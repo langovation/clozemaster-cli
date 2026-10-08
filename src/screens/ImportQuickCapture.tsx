@@ -17,8 +17,11 @@ import { Select } from "../components/Select.js";
 import { Spinner } from "../components/Spinner.js";
 import { colors } from "../theme.js";
 import { useRequest } from "../useRequest.js";
+import { useSubmission } from "../useSubmission.js";
 
 const NEW_COLLECTION = "new";
+
+type ImportTarget = OwnCollection | typeof NEW_COLLECTION;
 
 type ImportQuickCaptureProps = {
   entries: QuickCaptureEntry[];
@@ -28,14 +31,13 @@ type ImportQuickCaptureProps = {
 };
 
 export function ImportQuickCapture({ entries, onBack, onImported, pairing }: ImportQuickCaptureProps) {
-  const { error, isLoading, result: importTargets } = useRequest(
+  const { error, isLoading, result: importOptions } = useRequest(
     async () => ({ collections: await getOwnCollections(pairing), isPro: await isProSubscriber() }),
     [pairing.id],
   );
   const [isNaming, setIsNaming] = useState(false);
   const [newName, setNewName] = useState("");
-  const [isImporting, setIsImporting] = useState(false);
-  const [importError, setImportError] = useState<Error>();
+  const { error: importError, isSubmitting: isImporting, submit } = useSubmission();
 
   useInput((_input, key) => {
     if (!key.escape || isImporting) return;
@@ -43,21 +45,17 @@ export function ImportQuickCapture({ entries, onBack, onImported, pairing }: Imp
     else onBack();
   });
 
-  async function importInto(pickCollection: () => Promise<OwnCollection>) {
-    setIsImporting(true);
-    try {
-      const collection = await pickCollection();
+  function importInto(findCollection: () => Promise<OwnCollection>) {
+    submit(async () => {
+      const collection = await findCollection();
       await importQuickCaptureEntries(pairing, { collection, entries });
       onImported(collection);
-    } catch (pickError) {
-      setImportError(pickError as Error);
-      setIsImporting(false);
-    }
+    });
   }
 
-  function pick(value: OwnCollection | typeof NEW_COLLECTION) {
-    if (value === NEW_COLLECTION) setIsNaming(true);
-    else importInto(async () => value);
+  function pick(target: ImportTarget) {
+    if (target === NEW_COLLECTION) setIsNaming(true);
+    else importInto(async () => target);
   }
 
   function createAndImport(name: string) {
@@ -67,15 +65,7 @@ export function ImportQuickCapture({ entries, onBack, onImported, pairing }: Imp
   const title = `Import all ${entries.length} ${entries.length === 1 ? "word" : "words"} into a ${pairing.targetLanguageName} collection`;
   if (isLoading) return <Spinner label="Loading your collections…" />;
   if (error) return <ErrorMessage error={error} />;
-  if (!importTargets?.isPro) {
-    return (
-      <Box flexDirection="column" gap={1}>
-        <Text bold>{title}</Text>
-        <ErrorMessage error={new ProRequiredError("Importing Quick Capture words into a collection needs Clozemaster Pro.", "quick_capture_import")} />
-        <Hints hints={["esc back"]} />
-      </Box>
-    );
-  }
+  if (!importOptions?.isPro) return <ImportNeedsPro title={title} />;
 
   return (
     <Box flexDirection="column" gap={1}>
@@ -90,17 +80,24 @@ export function ImportQuickCapture({ entries, onBack, onImported, pairing }: Imp
       {!isImporting && !isNaming && (
         <Box flexDirection="column">
           <Text dimColor>Pick one of your collections or make a new one. It gets pinned to your dashboard.</Text>
-          <Select
-            items={[
-              ...importTargets.collections.map((collection) => ({ label: collection.name, value: collection as OwnCollection | typeof NEW_COLLECTION })),
-              { label: "+ New collection", value: NEW_COLLECTION },
-            ]}
+          <Select<ImportTarget>
+            items={[...importOptions.collections.map((collection) => ({ label: collection.name, value: collection })), { label: "+ New collection", value: NEW_COLLECTION }]}
             onSelect={pick}
           />
         </Box>
       )}
       {importError && <ErrorMessage error={importError} />}
       <Hints hints={[isNaming ? "enter to create and import" : "enter to import", "esc back"]} />
+    </Box>
+  );
+}
+
+function ImportNeedsPro({ title }: { title: string }) {
+  return (
+    <Box flexDirection="column" gap={1}>
+      <Text bold>{title}</Text>
+      <ErrorMessage error={new ProRequiredError("Importing Quick Capture words into a collection needs Clozemaster Pro.", "quick_capture_import")} />
+      <Hints hints={["esc back"]} />
     </Box>
   );
 }
