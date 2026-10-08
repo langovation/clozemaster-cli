@@ -19,6 +19,30 @@ Environment
 
 const ENTER_ALTERNATE_SCREEN = "\x1b[?1049h\x1b[H";
 const LEAVE_ALTERNATE_SCREEN = "\x1b[?1049l";
+const LOGIN_VARIABLES = ["CLOZEMASTER_TOKEN", "CLOZEMASTER_COOKIE"];
+
+const command = process.argv[2];
+
+switch (command) {
+  case undefined:
+  case "login":
+    runFullScreen(<App forceLogin={command === "login"} />);
+    break;
+  case "help":
+  case "--help":
+  case "-h":
+    console.log(HELP);
+    break;
+  case "logout":
+    logOut();
+    break;
+  case "mcp":
+    startMcpServer();
+    break;
+  default:
+    console.error(`Unknown command: ${command}\n\n${HELP}`);
+    process.exitCode = 1;
+}
 
 // Like Claude Code: take over the whole terminal and hand it back untouched on exit.
 async function runFullScreen(app: React.ReactElement) {
@@ -27,20 +51,9 @@ async function runFullScreen(app: React.ReactElement) {
   await render(app).waitUntilExit();
 }
 
-const command = process.argv[2];
-
-if (command === "help" || command === "--help" || command === "-h") {
-  console.log(HELP);
-} else if (command === "logout") {
+function logOut() {
   clearLogin();
   console.log(`Logged out of ${baseUrl}.`);
-  const loginVariables = ["CLOZEMASTER_TOKEN", "CLOZEMASTER_COOKIE"].filter((name) => process.env[name]);
-  if (loginVariables.length) console.log(`${loginVariables.join(" and ")} still logs you in until you unset it.`);
-} else if (command === "mcp") {
-  startMcpServer();
-} else if (command === undefined || command === "login") {
-  runFullScreen(<App forceLogin={command === "login"} />);
-} else {
-  console.error(`Unknown command: ${command}\n\n${HELP}`);
-  process.exitCode = 1;
+  const setLoginVariables = LOGIN_VARIABLES.filter((name) => process.env[name]);
+  if (setLoginVariables.length) console.log(`${setLoginVariables.join(" and ")} still logs you in until you unset it.`);
 }
