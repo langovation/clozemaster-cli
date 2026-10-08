@@ -38,9 +38,16 @@ npm run dev
 
 ## Release a new version
 
-1. Bump `version` in `package.json` and commit it.
-2. Tag the commit and push the tag: `git tag v0.2.0 && git push origin v0.2.0`. The release workflow (`.github/workflows/release.yml`) runs the tests, builds an executable for each platform with `npm run build:binary -- --all`, and publishes them with `SHA256SUMS` as the latest GitHub release. `install.sh` always downloads from the latest release.
-3. Once the release has its assets, set `lib/cli/cli-version.txt` in the web repo to the new version. Every CLI reads that file on launch and, if it's older, tells the user to rerun the install line, so it goes last.
+```sh
+npm run release -- 0.2.0
+```
+
+From a clean, pushed `main`, the script:
+
+1. Bumps `version` in `package.json`, commits it, tags `v0.2.0` and pushes both.
+2. Waits for the release workflow (`.github/workflows/release.yml`), which runs the tests, builds an executable for each platform and publishes them with `SHA256SUMS` as the latest GitHub release. `install.sh` always downloads from the latest release.
+3. Checks the release has all five files.
+4. Opens a web repo PR setting `lib/cli/cli-version.txt` to the new version. Every CLI reads that file on launch and, if it's older, tells the user to rerun the install line, so merge it last. The script looks for the web repo next to this one; set `CLOZEMASTER_WEB_REPO` if it's elsewhere.
 
 The copy of `install.sh` served at clozemaster.com lives in the web repo at `lib/cli/install-cli.sh`.
 
