@@ -7,8 +7,6 @@ import { clearLogin, getStoredUsername } from "../src/config.js";
 import { Login } from "../src/screens/Login.js";
 import { ENTER, press, stripAnsi, waitForText } from "./helpers.js";
 
-vi.mock("open", () => ({ default: vi.fn(async () => undefined) }));
-
 const login = { deviceCode: "device", expiresIn: 600, pollInterval: 0.01, userCode: "ABCD-1234", verificationUrl: "https://example.com/cli" };
 
 describe("Login", () => {

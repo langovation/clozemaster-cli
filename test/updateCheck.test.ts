@@ -3,8 +3,6 @@ import open from "open";
 import { openFeedbackEmail } from "../src/feedback.js";
 import { currentVersion, fetchNewerVersion, isNewerVersion } from "../src/updateCheck.js";
 
-vi.mock("open", () => ({ default: vi.fn(async () => undefined) }));
-
 describe("isNewerVersion", () => {
   it.each([
     ["0.2.0", "0.1.9"],

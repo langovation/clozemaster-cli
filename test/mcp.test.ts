@@ -21,8 +21,6 @@ vi.mock("../src/api.js", async (importOriginal) => ({
   updateCollectionSentence: vi.fn(),
 }));
 
-vi.mock("open", () => ({ default: vi.fn(async () => undefined) }));
-
 const pairing: api.LanguagePairing = {
   id: 7,
   baseLanguageName: "English",

@@ -8,8 +8,6 @@ import { ExplanationPanel } from "../src/components/ExplanationPanel.js";
 import { Select } from "../src/components/Select.js";
 import { DOWN, ENTER, press, settle, showsInColor, stripAnsi, UP, waitForText } from "./helpers.js";
 
-vi.mock("open", () => ({ default: vi.fn(async () => undefined) }));
-
 const items = (count: number) => Array.from({ length: count }, (_, index) => ({ label: `Item ${index + 1}`, value: index + 1 }));
 
 describe("Select", () => {

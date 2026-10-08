@@ -5,7 +5,6 @@ import { saveLogin } from "../src/config.js";
 
 vi.mock("../src/api.js", () => ({ pollCliLogin: vi.fn(), startCliLogin: vi.fn() }));
 vi.mock("../src/config.js", () => ({ saveLogin: vi.fn() }));
-vi.mock("open", () => ({ default: vi.fn(async () => undefined) }));
 
 const login = { deviceCode: "device", expiresIn: 600, pollInterval: 2, userCode: "ABCD-1234", verificationUrl: "https://example.com/cli" };
 
