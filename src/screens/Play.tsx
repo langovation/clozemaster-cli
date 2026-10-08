@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Box, Text, useInput } from "ink";
 import { getRound, isTypedMode, markSentenceKnown, saveAnswer, type AnswerResult, type PlayMode, type Sentence } from "../api.js";
-import { playSentenceAudio, playSentenceAudioAtHalfSpeed, playSoundEffect, preloadSentenceAudio, stopAudio } from "../audio.js";
+import { canPlayAtHalfSpeed, playSentenceAudio, playSentenceAudioAtHalfSpeed, playSoundEffect, preloadSentenceAudio, stopAudio } from "../audio.js";
 import { isCorrectAnswer, multipleChoiceOptions, pointsFor, splitCloze } from "../answers.js";
 import { canExplain, ExplanationPanel } from "../components/ExplanationPanel.js";
 import { FlashcardAnswer } from "../components/FlashcardAnswer.js";
@@ -27,6 +27,8 @@ const ANSWER_HINTS: Record<PlayMode, string> = {
   multiple_choice: "1-4 to answer",
   text_input: "↑ accent",
 };
+
+const HALF_SPEED_HINT = canPlayAtHalfSpeed ? ["h half speed"] : [];
 
 type PlayProps = {
   choice: RoundChoice;
@@ -164,8 +166,8 @@ function PlayRound({ choice, isTextEditable, mode, onMenu, onPlayAgain, onProgre
     if (input === "e" && isExplainable) setIsExplaining((current) => !current);
     if (input === "p" && isListening && !answered) listenToSentence();
     else if (input === "p" && canPlayAudio) playSentenceAudio(sentence);
-    if (input === "h" && isListening && !answered) listenToSentence(playSentenceAudioAtHalfSpeed);
-    else if (input === "h" && canPlayAudio) playSentenceAudioAtHalfSpeed(sentence);
+    if (input === "h" && canPlayAtHalfSpeed && isListening && !answered) listenToSentence(playSentenceAudioAtHalfSpeed);
+    else if (input === "h" && canPlayAtHalfSpeed && canPlayAudio) playSentenceAudioAtHalfSpeed(sentence);
     // Not once a flashcard is revealed, or the next mode would show the answer it asks for.
     if (key.tab && !answered && !isRevealed) onToggleMode();
     if (key.return && answered) goToNextSentence();
@@ -327,13 +329,13 @@ function PlayRound({ choice, isTextEditable, mode, onMenu, onPlayAgain, onProgre
       <Hints
         hints={
           isListening && !answered
-            ? ["p replay", "h half speed", "esc back"]
+            ? ["p replay", ...HALF_SPEED_HINT, "esc back"]
             : answered
-            ? ["enter to continue", ...(canPlayAudio ? ["p replay", "h half speed"] : []), ...(isExplainable ? [isExplaining ? "e hide explanation" : "e explain"] : []), "s settings", ...(upsertUrl ? ["c edit card"] : []), "esc back"]
+            ? ["enter to continue", ...(canPlayAudio ? ["p replay", ...HALF_SPEED_HINT] : []), ...(isExplainable ? [isExplaining ? "e hide explanation" : "e explain"] : []), "s settings", ...(upsertUrl ? ["c edit card"] : []), "esc back"]
             : [
                 ...((isTypedMode(mode) || (mode === "flashcard" && !isRevealed)) && !hasUsedHint ? ["→ hint"] : []),
                 ...(isRevealed ? [] : [ANSWER_HINTS[mode]]),
-                ...(isRevealed && canPlayAudio ? ["p replay", "h half speed"] : []),
+                ...(isRevealed && canPlayAudio ? ["p replay", ...HALF_SPEED_HINT] : []),
                 ...(isExplainable ? ["e explain"] : []),
                 ...(canGoBack ? ["b previous card"] : []),
                 ...(isRevealed ? [] : [`tab: ${MODE_LABELS[nextMode(mode)].toLowerCase()}`]),

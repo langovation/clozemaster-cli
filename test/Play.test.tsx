@@ -35,7 +35,7 @@ function renderPlay(mode: api.PlayMode, settings: Partial<Settings> = {}, onTogg
   );
 }
 
-vi.mock("../src/audio.js", () => ({ playSentenceAudio: vi.fn(async () => true), playSentenceAudioAtHalfSpeed: vi.fn(async () => true), playSoundEffect: vi.fn(async () => true), preloadSentenceAudio: vi.fn(), stopAudio: vi.fn() }));
+vi.mock("../src/audio.js", () => ({ canPlayAtHalfSpeed: true, playSentenceAudio: vi.fn(async () => true), playSentenceAudioAtHalfSpeed: vi.fn(async () => true), playSoundEffect: vi.fn(async () => true), preloadSentenceAudio: vi.fn(), stopAudio: vi.fn() }));
 
 describe("Play", () => {
   beforeEach(() => {

@@ -23,6 +23,12 @@ const HALF_SPEED_PLAYERS: { args: string[]; command: string }[] =
         { args: ["--no-video", "--really-quiet", "--speed=0.5"], command: "mpv" },
       ];
 
+function isOnPath(command: string): boolean {
+  return (process.env.PATH || "").split(path.delimiter).some((directory) => fs.existsSync(path.join(directory, command)));
+}
+
+export const canPlayAtHalfSpeed = HALF_SPEED_PLAYERS.some((player) => isOnPath(player.command));
+
 // Per user rather than the shared temp dir, so nobody else on the machine can plant files in it.
 const cacheDirectory = path.join(process.env.XDG_CACHE_HOME || path.join(os.homedir(), ".cache"), "clozemaster", "audio");
 let currentPlayback: ChildProcess | undefined;
