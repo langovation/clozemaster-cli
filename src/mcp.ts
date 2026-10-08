@@ -3,26 +3,103 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import {
-  addQuickCaptureEntry,
+  ApiError,
   createCollection,
-  deleteQuickCaptureEntry,
+  createCollectionSentence,
+  deleteCollectionSentence,
+  getCollectionSentence,
+  getCollectionSentences,
   getLanguagePairings,
   getOwnCollections,
-  getQuickCaptureEntries,
-  importQuickCaptureEntries,
   isProSubscriber,
   ProRequiredError,
-  updateQuickCaptureEntry,
+  updateCollectionSentence,
+  type CollectionSentence,
   type LanguagePairing,
-  type QuickCaptureEntry,
+  type NewCollectionSentence,
+  type OwnCollection,
 } from "./api.js";
 import { getAuthToken } from "./config.js";
 import { currentVersion } from "./updateCheck.js";
 
 const NOT_LOGGED_IN = "Not logged in to Clozemaster. Run `clozemaster` in a terminal and log in first.";
 
-const languagePairingId = z.number().int().describe("Language pairing id from list_language_pairings");
-const entryId = z.string().describe("Quick Capture entry id from list_quick_capture");
+const INSTRUCTIONS = `Manage the sentences in the user's own Clozemaster collections. Clozemaster teaches a language with cloze sentences: a sentence in the language being learned with one word hidden, which the learner fills in.
+
+Typical workflow:
+1. list_language_pairings: pick the pairing for the language the user means. Note its id, its targetLanguage (the language being learned, which sentences are written in) and its baseLanguage (the learner's own language, which translations are written in).
+2. list_collections to pick one of the user's own collections, or create_collection to make a new one.
+3. add_sentences to write sentences into it. list_sentences, update_sentence and delete_sentence review and fix them.
+
+Only the user's own collections can be read or changed here. Adding sentences needs Clozemaster Pro.`;
+
+const CLOZE_EXAMPLE = "`Ich {{habe}} Hunger.`";
+const CLOZE_PATTERN = /^[^{}]*\{\{[^{}]*[^{}\s][^{}]*\}\}[^{}]*$/;
+const MAX_ALTERNATIVE_ANSWERS_LENGTH = 100;
+const MAX_NOTES_LENGTH = 200;
+const MAX_SENTENCES_PER_CALL = 50;
+const MAX_PER_PAGE = 100;
+
+const languagePairingId = z
+  .number()
+  .int()
+  .positive()
+  .describe("`id` of a language pairing from list_language_pairings.");
+const collectionId = z
+  .number()
+  .int()
+  .positive()
+  .describe("`id` of one of the user's own collections, from list_collections or create_collection.");
+const sentenceId = z
+  .number()
+  .int()
+  .positive()
+  .describe("`id` of a sentence in that collection, from list_sentences or add_sentences.");
+const clozeText = z
+  .string()
+  .regex(CLOZE_PATTERN, `text must contain exactly one non-empty {{cloze}} and no other braces, e.g. ${CLOZE_EXAMPLE}`)
+  .describe(
+    `The sentence in the pairing's targetLanguage, with exactly one word wrapped in double curly braces: the single word the learner is meant to learn, e.g. ${CLOZE_EXAMPLE}. No other braces anywhere.`,
+  );
+const translation = z
+  .string()
+  .trim()
+  .min(1)
+  .describe("Translation of the whole sentence into the pairing's baseLanguage. Plain text, no braces.");
+
+const newSentence = z.object({
+  text: clozeText,
+  translation,
+  hint: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe("Optional short clue shown before the learner answers, e.g. the hidden word's dictionary form. Must not give the answer away."),
+  notes: z
+    .string()
+    .trim()
+    .min(1)
+    .max(MAX_NOTES_LENGTH)
+    .optional()
+    .describe(`Optional note kept with the sentence, at most ${MAX_NOTES_LENGTH} characters.`),
+  alternativeAnswers: z
+    .array(z.string().trim().min(1).regex(/^[^,]+$/, "an alternative answer can't contain a comma"))
+    .refine(
+      (answers) => answers.join(",").length <= MAX_ALTERNATIVE_ANSWERS_LENGTH,
+      `alternativeAnswers joined with commas must be at most ${MAX_ALTERNATIVE_ANSWERS_LENGTH} characters`,
+    )
+    .optional()
+    .describe(
+      `Optional other words also accepted in place of the hidden word, e.g. another spelling. No commas; at most ${MAX_ALTERNATIVE_ANSWERS_LENGTH} characters in total.`,
+    ),
+  pronunciation: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe("Optional reading of the whole sentence shown after answering, e.g. pinyin or romaji. Only for languages not written in Latin script."),
+});
 
 function isLoggedIn(): boolean {
   return Boolean(getAuthToken() || process.env.CLOZEMASTER_COOKIE);
@@ -46,67 +123,118 @@ async function runTool(action: () => Promise<unknown>): Promise<CallToolResult> 
   }
 }
 
+async function requirePro() {
+  if (!(await isProSubscriber())) {
+    throw new ProRequiredError("Adding sentences to a collection needs Clozemaster Pro.", "mcp_add_sentences");
+  }
+}
+
 async function findLanguagePairing(id: number): Promise<LanguagePairing> {
   const pairing = (await getLanguagePairings()).find((candidate) => candidate.id === id);
   if (!pairing) throw new Error(`No language pairing with id ${id}. Call list_language_pairings for valid ids.`);
   return pairing;
 }
 
-async function findQuickCaptureEntries(pairing: LanguagePairing, ids: string[]): Promise<QuickCaptureEntry[]> {
-  const entries = await getQuickCaptureEntries(pairing);
-  return ids.map((id) => {
-    const entry = entries.find((candidate) => candidate.id === id);
-    if (!entry) throw new Error(`No Quick Capture entry with id ${id}. Call list_quick_capture for valid ids.`);
-    return entry;
-  });
+async function findOwnCollection(pairing: LanguagePairing, id: number): Promise<OwnCollection> {
+  const collection = (await getOwnCollections(pairing)).find((candidate) => candidate.id === id);
+  if (!collection) {
+    throw new Error(`No collection of the user's own with id ${id} in this language pairing. Call list_collections for valid ids.`);
+  }
+  return collection;
 }
 
-async function findOwnCollection(pairing: LanguagePairing, id: number) {
-  const collection = (await getOwnCollections(pairing)).find((candidate) => candidate.id === id);
-  if (!collection) throw new Error(`No collection of yours with id ${id}. Call list_collections for valid ids.`);
-  return collection;
+async function findPairingAndCollection(ids: { languagePairingId: number; collectionId: number }) {
+  const pairing = await findLanguagePairing(ids.languagePairingId);
+  return { pairing, collection: await findOwnCollection(pairing, ids.collectionId) };
+}
+
+async function findSentence(pairing: LanguagePairing, collection: OwnCollection, id: number): Promise<CollectionSentence> {
+  try {
+    return await getCollectionSentence(pairing, { collection, id });
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) {
+      throw new Error(`No sentence with id ${id} in collection ${collection.id}. Call list_sentences for valid ids.`);
+    }
+    throw error;
+  }
 }
 
 function summarizePairing({ id, baseLanguageName, targetLanguageName }: LanguagePairing) {
   return { id, targetLanguage: targetLanguageName, baseLanguage: baseLanguageName };
 }
 
-function summarizeEntry({ id, sentence, sentenceTranslation, status, text, translation }: QuickCaptureEntry) {
-  return { id, text, translation, sentence, sentenceTranslation, status };
+function summarizeSentence({ id, alternativeAnswers, hint, notes, pronunciation, text, translation }: CollectionSentence) {
+  return { id, text, translation, hint, notes, alternativeAnswers, pronunciation };
 }
 
-async function importIntoCollection({
-  collectionId,
-  entryIds,
-  languagePairingId,
-}: {
-  collectionId: number;
-  entryIds: string[];
-  languagePairingId: number;
-}) {
-  if (!(await isProSubscriber())) {
-    throw new ProRequiredError("Importing Quick Capture words into a collection needs Clozemaster Pro.", "quick_capture_import");
+async function listSentences(input: { languagePairingId: number; collectionId: number; page: number; perPage: number }) {
+  const { pairing, collection } = await findPairingAndCollection(input);
+  const { collectionClozeSentences, page, perPage, total } = await getCollectionSentences(pairing, {
+    collection,
+    page: input.page,
+    perPage: input.perPage,
+  });
+  return {
+    sentences: collectionClozeSentences.map(summarizeSentence),
+    page,
+    perPage,
+    total,
+    nextPage: page * perPage < total ? page + 1 : null,
+  };
+}
+
+async function addSentences(input: { languagePairingId: number; collectionId: number; sentences: NewCollectionSentence[] }) {
+  await requirePro();
+  const { pairing, collection } = await findPairingAndCollection(input);
+  const added = [];
+  const failed = [];
+  for (const [index, sentence] of input.sentences.entries()) {
+    try {
+      added.push({ index, ...summarizeSentence(await createCollectionSentence(pairing, { collection, sentence })) });
+    } catch (error) {
+      failed.push({ index, text: sentence.text, error: errorMessage(error) });
+    }
   }
-  const pairing = await findLanguagePairing(languagePairingId);
-  const collection = await findOwnCollection(pairing, collectionId);
-  const entries = await findQuickCaptureEntries(pairing, entryIds);
-  await importQuickCaptureEntries(pairing, { collection, entries });
-  return { importing: entries.length, collection };
+  return { added, failed };
+}
+
+async function updateSentence(input: {
+  languagePairingId: number;
+  collectionId: number;
+  sentenceId: number;
+  text: string;
+  translation: string;
+}) {
+  const { pairing, collection } = await findPairingAndCollection(input);
+  await findSentence(pairing, collection, input.sentenceId);
+  await updateCollectionSentence(pairing, { collection, id: input.sentenceId, text: input.text, translation: input.translation });
+  return { id: input.sentenceId, text: input.text, translation: input.translation };
+}
+
+async function deleteSentence(input: { languagePairingId: number; collectionId: number; sentenceId: number }) {
+  const { pairing, collection } = await findPairingAndCollection(input);
+  await findSentence(pairing, collection, input.sentenceId);
+  await deleteCollectionSentence(pairing, { collection, id: input.sentenceId });
+  return { deleted: input.sentenceId };
 }
 
 export function createMcpServer(): McpServer {
-  const server = new McpServer({ name: "clozemaster", version: currentVersion });
+  const server = new McpServer({ name: "clozemaster", version: currentVersion }, { instructions: INSTRUCTIONS });
 
   server.registerTool(
     "list_language_pairings",
-    { description: "List the languages the user is learning on Clozemaster. Every other tool needs one of these ids." },
+    {
+      description:
+        "List the languages the user is learning. Returns [{ id, targetLanguage, baseLanguage }]: targetLanguage is the language being learned (sentence text is written in it), baseLanguage is the learner's own (translations are written in it). Every other tool takes one of these ids as languagePairingId.",
+    },
     () => runTool(async () => (await getLanguagePairings()).map(summarizePairing)),
   );
 
   server.registerTool(
     "list_collections",
     {
-      description: "List the user's own collections for a language pairing, most recently updated first.",
+      description:
+        "List the user's own collections in a language pairing, most recently updated first. Returns [{ id, name }]. Only these collections can be read or changed with the sentence tools.",
       inputSchema: { languagePairingId },
     },
     ({ languagePairingId }) => runTool(async () => getOwnCollections(await findLanguagePairing(languagePairingId))),
@@ -115,74 +243,56 @@ export function createMcpServer(): McpServer {
   server.registerTool(
     "create_collection",
     {
-      description: "Create a new, empty collection of the user's own in a language pairing.",
-      inputSchema: { languagePairingId, name: z.string().min(1).describe("Collection name") },
+      description: "Create a new, empty collection owned by the user in a language pairing. Returns { id, name }; pass that id as collectionId to add_sentences.",
+      inputSchema: { languagePairingId, name: z.string().trim().min(1).describe("Name of the new collection, e.g. `Kitchen words`.") },
     },
     ({ languagePairingId, name }) => runTool(async () => createCollection(await findLanguagePairing(languagePairingId), name)),
   );
 
   server.registerTool(
-    "list_quick_capture",
+    "list_sentences",
     {
       description:
-        "List Quick Capture entries: words or phrases the user saved to learn later. Clozemaster fills in a translation and an example sentence once status is processed.",
-      inputSchema: { languagePairingId },
-    },
-    ({ languagePairingId }) =>
-      runTool(async () => (await getQuickCaptureEntries(await findLanguagePairing(languagePairingId))).map(summarizeEntry)),
-  );
-
-  server.registerTool(
-    "add_quick_capture",
-    {
-      description: "Save a word or phrase in the target language to Quick Capture. Clozemaster translates it and writes an example sentence.",
-      inputSchema: { languagePairingId, text: z.string().min(1).describe("Word or phrase in the target language") },
-    },
-    ({ languagePairingId, text }) =>
-      runTool(async () => summarizeEntry(await addQuickCaptureEntry(await findLanguagePairing(languagePairingId), text))),
-  );
-
-  server.registerTool(
-    "update_quick_capture",
-    {
-      description: "Replace the example sentence and its translation of a Quick Capture entry.",
+        "List the sentences in one of the user's own collections, one page at a time. Returns { sentences: [{ id, text, translation, hint, notes, alternativeAnswers, pronunciation }], page, perPage, total, nextPage }. text marks the hidden word with {{double curly braces}}. nextPage is null on the last page.",
       inputSchema: {
         languagePairingId,
-        entryId,
-        sentence: z.string().min(1).describe("Example sentence in the target language using the entry's word"),
-        sentenceTranslation: z.string().min(1).describe("Translation of the sentence into the base language"),
+        collectionId,
+        page: z.number().int().positive().default(1).describe("Page number, starting at 1."),
+        perPage: z.number().int().min(1).max(MAX_PER_PAGE).default(20).describe(`Sentences per page, 1 to ${MAX_PER_PAGE}.`),
       },
     },
-    ({ languagePairingId, entryId, sentence, sentenceTranslation }) =>
-      runTool(async () => {
-        const [entry] = await findQuickCaptureEntries(await findLanguagePairing(languagePairingId), [entryId]);
-        return summarizeEntry(await updateQuickCaptureEntry(entry, { sentence, sentenceTranslation }));
-      }),
+    (input) => runTool(() => listSentences(input)),
   );
 
   server.registerTool(
-    "delete_quick_capture",
-    { description: "Delete a Quick Capture entry.", inputSchema: { languagePairingId, entryId } },
-    ({ languagePairingId, entryId }) =>
-      runTool(async () => {
-        const [entry] = await findQuickCaptureEntries(await findLanguagePairing(languagePairingId), [entryId]);
-        await deleteQuickCaptureEntry(entry);
-        return { deleted: entryId };
-      }),
-  );
-
-  server.registerTool(
-    "import_quick_capture",
+    "add_sentences",
     {
-      description:
-        "Import Quick Capture entries into one of the user's own collections so they can be played. Runs in the background; imported entries leave Quick Capture. Needs Clozemaster Pro.",
+      description: `Add up to ${MAX_SENTENCES_PER_CALL} new sentences to one of the user's own collections. Needs Clozemaster Pro. Each sentence's text is in the pairing's targetLanguage with exactly one word wrapped in double curly braces, the single word the learner is meant to learn, e.g. ${CLOZE_EXAMPLE}; translation is the whole sentence in the pairing's baseLanguage (both languages come from list_language_pairings). Each sentence is saved separately: returns { added: [{ index, id, ... }], failed: [{ index, text, error }] }, where index is the position in the sentences array. A sentence fails, for example, when the collection already has the same text.`,
       inputSchema: {
         languagePairingId,
-        collectionId: z.number().int().describe("Collection id from list_collections or create_collection"),
-        entryIds: z.array(z.string()).min(1).describe("Quick Capture entry ids to import"),
+        collectionId,
+        sentences: z.array(newSentence).min(1).max(MAX_SENTENCES_PER_CALL).describe("The sentences to add, in order."),
       },
     },
-    (input) => runTool(() => importIntoCollection(input)),
+    (input) => runTool(() => addSentences(input)),
+  );
+
+  server.registerTool(
+    "update_sentence",
+    {
+      description: `Replace the text and translation of a sentence in one of the user's own collections. Send both, even if only one changes. text is in the pairing's targetLanguage with exactly one word wrapped in double curly braces, the single word the learner is meant to learn, e.g. ${CLOZE_EXAMPLE}; translation is the whole sentence in the pairing's baseLanguage. Returns { id, text, translation }.`,
+      inputSchema: { languagePairingId, collectionId, sentenceId, text: clozeText, translation },
+    },
+    (input) => runTool(() => updateSentence(input)),
+  );
+
+  server.registerTool(
+    "delete_sentence",
+    {
+      description: "Permanently delete a sentence from one of the user's own collections. Returns { deleted: sentenceId }.",
+      inputSchema: { languagePairingId, collectionId, sentenceId },
+    },
+    (input) => runTool(() => deleteSentence(input)),
   );
 
   return server;

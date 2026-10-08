@@ -66,7 +66,7 @@ While playing: `1`-`4` picks an answer, `→` gives one hint per sentence, `tab`
 
 ## Use with Claude (MCP)
 
-`clozemaster mcp` lets Claude Code or Claude Desktop manage your collections and Quick Capture words: list and create collections, add, edit and delete Quick Capture entries, and import them into a collection. It doesn't play rounds.
+`clozemaster mcp` lets Claude Code or Claude Desktop write sentences straight into your own collections: list and create collections, and list, add, edit and delete their sentences. Adding sentences needs Clozemaster Pro. It doesn't play rounds.
 
 Log in first by running `clozemaster` once; the MCP server uses that saved login.
 

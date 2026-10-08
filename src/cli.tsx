@@ -10,7 +10,7 @@ Usage
   clozemaster          play (logs you in first if needed)
   clozemaster login    log in with your browser
   clozemaster logout   forget your login on this machine
-  clozemaster mcp      run an MCP server on stdio so Claude can manage your collections and Quick Capture
+  clozemaster mcp      run an MCP server on stdio so Claude can write sentences into your collections
 
 Environment
   CLOZEMASTER_TOKEN    use this auth token instead of logging in

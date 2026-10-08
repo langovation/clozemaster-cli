@@ -253,6 +253,91 @@ export async function createCollection(languagePairing: LanguagePairing, name: s
   return collection;
 }
 
+export type CollectionSentence = {
+  id: number;
+  alternativeAnswers: string[];
+  hint: string | null;
+  notes: string | null;
+  pronunciation: string | null;
+  text: string;
+  translation: string;
+};
+
+export type NewCollectionSentence = {
+  alternativeAnswers?: string[];
+  hint?: string;
+  notes?: string;
+  pronunciation?: string;
+  text: string;
+  translation: string;
+};
+
+export type CollectionSentencesPage = {
+  collectionClozeSentences: CollectionSentence[];
+  page: number;
+  perPage: number;
+  total: number;
+};
+
+function collectionSentencesPath(languagePairing: LanguagePairing, collection: OwnCollection): string {
+  return `/lp/${languagePairing.id}/c/${collection.id}/ccs`;
+}
+
+export async function getCollectionSentences(
+  languagePairing: LanguagePairing,
+  { collection, page, perPage }: { collection: OwnCollection; page: number; perPage: number },
+): Promise<CollectionSentencesPage> {
+  return request<CollectionSentencesPage>(collectionSentencesPath(languagePairing, collection), {
+    query: { page: String(page), per_page: String(perPage) },
+  });
+}
+
+export async function getCollectionSentence(
+  languagePairing: LanguagePairing,
+  { collection, id }: { collection: OwnCollection; id: number },
+): Promise<CollectionSentence> {
+  const { collectionClozeSentence } = await request<{ collectionClozeSentence: CollectionSentence }>(
+    `${collectionSentencesPath(languagePairing, collection)}/${id}`,
+  );
+  return collectionClozeSentence;
+}
+
+// The server answers 200 with { errors } when a sentence doesn't save, e.g. a duplicate.
+export async function createCollectionSentence(
+  languagePairing: LanguagePairing,
+  { collection, sentence }: { collection: OwnCollection; sentence: NewCollectionSentence },
+): Promise<CollectionSentence> {
+  const { alternativeAnswers, ...fields } = sentence;
+  const response = await request<{ collectionClozeSentence?: CollectionSentence; errors?: string }>(
+    collectionSentencesPath(languagePairing, collection),
+    {
+      body: { collection_cloze_sentence: { ...fields, alternative_answers: alternativeAnswers?.join(",") } },
+      method: "POST",
+    },
+  );
+  if (!response.collectionClozeSentence) throw new Error(response.errors || "The sentence wasn't saved.");
+  return response.collectionClozeSentence;
+}
+
+// Upserting an id the collection doesn't have creates a new sentence instead, so callers check it exists first.
+export async function updateCollectionSentence(
+  languagePairing: LanguagePairing,
+  { collection, id, text, translation }: { collection: OwnCollection; id: number; text: string; translation: string },
+): Promise<void> {
+  const response = await request<{ errors?: string }>(collectionSentencesPath(languagePairing, collection), {
+    body: { updates: [{ id, text, translation }] },
+    method: "POST",
+  });
+  if (response.errors) throw new Error(response.errors);
+}
+
+export async function deleteCollectionSentence(
+  languagePairing: LanguagePairing,
+  { collection, id }: { collection: OwnCollection; id: number },
+): Promise<void> {
+  await request(`${collectionSentencesPath(languagePairing, collection)}/${id}`, { method: "DELETE" });
+}
+
 export async function isProSubscriber(): Promise<boolean> {
   const { user } = await request<{ user: { isPro: boolean | null } }>("/users/pro_subscriber");
   return Boolean(user.isPro);
