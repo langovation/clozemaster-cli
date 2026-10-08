@@ -113,7 +113,10 @@ describe("MCP server", () => {
     vi.mocked(api.pollCliLogin).mockResolvedValue({ authToken: "1:approved", username: "learner" });
 
     const result = await callTool("list_language_pairings");
-    expectToolError(result, "ABCD-1234");
+    expect(result.isError).toBe(true);
+    expect(resultText(result)).toBe(
+      "Not logged in to Clozemaster yet. A browser window opened to log in, showing the code ABCD-1234 (if it didn't open, visit https://example.com/cli). Ask the user to log in and approve it there, then call this tool again.",
+    );
     expect(open).toHaveBeenCalledWith("https://example.com/cli");
 
     await vi.advanceTimersByTimeAsync(1000);
@@ -226,6 +229,13 @@ describe("MCP server", () => {
     const result = await callTool("delete_sentence", { ...ids, sentenceId: 900 });
     expect(resultJson(result)).toEqual({ deleted: 900 });
     expect(api.deleteCollectionSentence).toHaveBeenCalledWith(pairing, { collection, id: 900 });
+  });
+
+  it("doesn't delete a sentence the collection doesn't have", async () => {
+    vi.mocked(api.getCollectionSentence).mockRejectedValue(new api.ApiError("Clozemaster responded 404", 404));
+    const result = await callTool("delete_sentence", { ...ids, sentenceId: 1 });
+    expectToolError(result, "No sentence with id 1 in collection 42");
+    expect(api.deleteCollectionSentence).not.toHaveBeenCalled();
   });
 
   it("surfaces API errors as tool errors", async () => {

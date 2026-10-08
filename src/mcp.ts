@@ -14,13 +14,14 @@ import {
   isProSubscriber,
   ProRequiredError,
   updateCollectionSentence,
+  type CliLoginStart,
   type CollectionSentence,
   type LanguagePairing,
   type NewCollectionSentence,
   type OwnCollection,
 } from "./api.js";
 import { hasLogin } from "./config.js";
-import { startBrowserLogin } from "./mcpLogin.js";
+import { startOrResumeBrowserLogin } from "./mcpLogin.js";
 import { currentVersion } from "./updateCheck.js";
 
 const INSTRUCTIONS = `Manage the sentences in the user's own Clozemaster collections. Clozemaster teaches a language with cloze sentences: a sentence in the language being learned with one word hidden, which the learner fills in.
@@ -39,51 +40,35 @@ const MAX_NOTES_LENGTH = 200;
 const MAX_SENTENCES_PER_CALL = 50;
 const MAX_PER_PAGE = 100;
 
-const languagePairingId = z
-  .number()
-  .int()
-  .positive()
-  .describe("`id` of a language pairing from list_language_pairings.");
-const collectionId = z
-  .number()
-  .int()
-  .positive()
-  .describe("`id` of one of the user's own collections, from list_collections or create_collection.");
-const sentenceId = z
-  .number()
-  .int()
-  .positive()
-  .describe("`id` of a sentence in that collection, from list_sentences or add_sentences.");
+type CollectionIds = { languagePairingId: number; collectionId: number };
+type SentenceIds = CollectionIds & { sentenceId: number };
+
+const positiveId = (description: string) => z.number().int().positive().describe(description);
+const nonEmptyText = () => z.string().trim().min(1);
+
+const languagePairingId = positiveId("`id` of a language pairing from list_language_pairings.");
+const collectionId = positiveId("`id` of one of the user's own collections, from list_collections or create_collection.");
+const sentenceId = positiveId("`id` of a sentence in that collection, from list_sentences or add_sentences.");
 const clozeText = z
   .string()
   .regex(CLOZE_PATTERN, `text must contain exactly one non-empty {{cloze}} and no other braces, e.g. ${CLOZE_EXAMPLE}`)
   .describe(
     `The sentence in the pairing's targetLanguage, with exactly one word wrapped in double curly braces: the single word the learner is meant to learn, e.g. ${CLOZE_EXAMPLE}. No other braces anywhere.`,
   );
-const translation = z
-  .string()
-  .trim()
-  .min(1)
-  .describe("Translation of the whole sentence into the pairing's baseLanguage. Plain text, no braces.");
+const translation = nonEmptyText().describe("Translation of the whole sentence into the pairing's baseLanguage. Plain text, no braces.");
 
 const newSentence = z.object({
   text: clozeText,
   translation,
-  hint: z
-    .string()
-    .trim()
-    .min(1)
+  hint: nonEmptyText()
     .optional()
     .describe("Optional short clue shown before the learner answers, e.g. the hidden word's dictionary form. Must not give the answer away."),
-  notes: z
-    .string()
-    .trim()
-    .min(1)
+  notes: nonEmptyText()
     .max(MAX_NOTES_LENGTH)
     .optional()
     .describe(`Optional note kept with the sentence, at most ${MAX_NOTES_LENGTH} characters.`),
   alternativeAnswers: z
-    .array(z.string().trim().min(1).regex(/^[^,]+$/, "an alternative answer can't contain a comma"))
+    .array(nonEmptyText().regex(/^[^,]+$/, "an alternative answer can't contain a comma"))
     .refine(
       (answers) => answers.join(",").length <= MAX_ALTERNATIVE_ANSWERS_LENGTH,
       `alternativeAnswers joined with commas must be at most ${MAX_ALTERNATIVE_ANSWERS_LENGTH} characters`,
@@ -92,10 +77,7 @@ const newSentence = z.object({
     .describe(
       `Optional other words also accepted in place of the hidden word, e.g. another spelling. No commas; at most ${MAX_ALTERNATIVE_ANSWERS_LENGTH} characters in total.`,
     ),
-  pronunciation: z
-    .string()
-    .trim()
-    .min(1)
+  pronunciation: nonEmptyText()
     .optional()
     .describe("Optional reading of the whole sentence shown after answering, e.g. pinyin or romaji. Only for languages not written in Latin script."),
 });
@@ -105,20 +87,28 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function textResult(text: string, isError = false): CallToolResult {
-  return { content: [{ type: "text", text }], ...(isError ? { isError } : {}) };
+function jsonResult(value: unknown): CallToolResult {
+  return { content: [{ type: "text", text: JSON.stringify(value) }] };
+}
+
+function errorResult(text: string): CallToolResult {
+  return { content: [{ type: "text", text }], isError: true };
+}
+
+function notLoggedInMessage(login: CliLoginStart): string {
+  return `Not logged in to Clozemaster yet. A browser window opened to log in, showing the code ${login.userCode} (if it didn't open, visit ${login.verificationUrl}). Ask the user to log in and approve it there, then call this tool again.`;
 }
 
 async function runTool(action: () => Promise<unknown>): Promise<CallToolResult> {
   try {
-    if (!hasLogin()) return textResult(await startBrowserLogin(), true);
-    return textResult(JSON.stringify(await action()));
+    if (!hasLogin()) return errorResult(notLoggedInMessage(await startOrResumeBrowserLogin()));
+    return jsonResult(await action());
   } catch (error) {
-    return textResult(errorMessage(error), true);
+    return errorResult(errorMessage(error));
   }
 }
 
-async function requirePro() {
+async function ensureProSubscriber() {
   if (!(await isProSubscriber())) {
     throw new ProRequiredError("Adding sentences to a collection needs Clozemaster Pro.", "mcp_add_sentences");
   }
@@ -138,20 +128,23 @@ async function findOwnCollection(pairing: LanguagePairing, id: number): Promise<
   return collection;
 }
 
-async function findPairingAndCollection(ids: { languagePairingId: number; collectionId: number }) {
+async function findPairingAndCollection(ids: CollectionIds) {
   const pairing = await findLanguagePairing(ids.languagePairingId);
   return { pairing, collection: await findOwnCollection(pairing, ids.collectionId) };
 }
 
-async function findSentence(pairing: LanguagePairing, collection: OwnCollection, id: number): Promise<CollectionSentence> {
+// Checked first because upserting an id the collection doesn't have creates a new sentence.
+async function findPairingAndCollectionWithSentence(ids: SentenceIds) {
+  const { pairing, collection } = await findPairingAndCollection(ids);
   try {
-    return await getCollectionSentence(pairing, { collection, id });
+    await getCollectionSentence(pairing, { collection, id: ids.sentenceId });
   } catch (error) {
     if (isApiError(error, 404)) {
-      throw new Error(`No sentence with id ${id} in collection ${collection.id}. Call list_sentences for valid ids.`);
+      throw new Error(`No sentence with id ${ids.sentenceId} in collection ${collection.id}. Call list_sentences for valid ids.`);
     }
     throw error;
   }
+  return { pairing, collection };
 }
 
 function summarizePairing({ id, baseLanguageName, targetLanguageName }: LanguagePairing) {
@@ -162,7 +155,7 @@ function summarizeSentence({ id, alternativeAnswers, hint, notes, pronunciation,
   return { id, text, translation, hint, notes, alternativeAnswers, pronunciation };
 }
 
-async function listSentences(input: { languagePairingId: number; collectionId: number; page: number; perPage: number }) {
+async function listSentences(input: CollectionIds & { page: number; perPage: number }) {
   const { pairing, collection } = await findPairingAndCollection(input);
   const { collectionClozeSentences, page, perPage, total } = await getCollectionSentences(pairing, {
     collection,
@@ -178,8 +171,8 @@ async function listSentences(input: { languagePairingId: number; collectionId: n
   };
 }
 
-async function addSentences(input: { languagePairingId: number; collectionId: number; sentences: NewCollectionSentence[] }) {
-  await requirePro();
+async function addSentences(input: CollectionIds & { sentences: NewCollectionSentence[] }) {
+  await ensureProSubscriber();
   const { pairing, collection } = await findPairingAndCollection(input);
   const added = [];
   const failed = [];
@@ -193,22 +186,14 @@ async function addSentences(input: { languagePairingId: number; collectionId: nu
   return { added, failed };
 }
 
-async function updateSentence(input: {
-  languagePairingId: number;
-  collectionId: number;
-  sentenceId: number;
-  text: string;
-  translation: string;
-}) {
-  const { pairing, collection } = await findPairingAndCollection(input);
-  await findSentence(pairing, collection, input.sentenceId);
+async function updateSentence(input: SentenceIds & { text: string; translation: string }) {
+  const { pairing, collection } = await findPairingAndCollectionWithSentence(input);
   await updateCollectionSentence(pairing, { collection, id: input.sentenceId, text: input.text, translation: input.translation });
   return { id: input.sentenceId, text: input.text, translation: input.translation };
 }
 
-async function deleteSentence(input: { languagePairingId: number; collectionId: number; sentenceId: number }) {
-  const { pairing, collection } = await findPairingAndCollection(input);
-  await findSentence(pairing, collection, input.sentenceId);
+async function deleteSentence(input: SentenceIds) {
+  const { pairing, collection } = await findPairingAndCollectionWithSentence(input);
   await deleteCollectionSentence(pairing, { collection, id: input.sentenceId });
   return { deleted: input.sentenceId };
 }
@@ -239,7 +224,7 @@ export function createMcpServer(): McpServer {
     "create_collection",
     {
       description: "Create a new, empty collection owned by the user in a language pairing. Returns { id, name }; pass that id as collectionId to add_sentences.",
-      inputSchema: { languagePairingId, name: z.string().trim().min(1).describe("Name of the new collection, e.g. `Kitchen words`.") },
+      inputSchema: { languagePairingId, name: nonEmptyText().describe("Name of the new collection, e.g. `Kitchen words`.") },
     },
     ({ languagePairingId, name }) => runTool(async () => createCollection(await findLanguagePairing(languagePairingId), name)),
   );
