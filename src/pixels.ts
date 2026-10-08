@@ -14,9 +14,14 @@ function cell(top: string | undefined, bottom: string | undefined): string {
   return `\x1b[38;2;${hexToRgb(top!)};48;2;${hexToRgb(bottom!)}m▀\x1b[0m`;
 }
 
+export function spriteWidth({ rows }: Sprite): number {
+  return Math.max(...rows.map((row) => row.length));
+}
+
 // Two pixel rows per terminal line using half blocks, so pixels come out square.
-export function renderSprite({ palette, rows }: Sprite): string {
-  const width = Math.max(...rows.map((row) => row.length));
+export function renderSprite(sprite: Sprite): string {
+  const { palette, rows } = sprite;
+  const width = spriteWidth(sprite);
   const colorAt = (y: number, x: number) => {
     const key = rows[y]?.[x];
     return key && key !== TRANSPARENT ? palette[key] : undefined;

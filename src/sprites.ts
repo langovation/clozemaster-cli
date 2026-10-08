@@ -30,22 +30,29 @@ const SMALL_GLYPHS: Glyphs = {
 
 // Each glyph row gets a shade from light to dark, plus a drop shadow, arcade style.
 const ROW_SHADES = ["1", "2", "3", "4", "5", "6", "7"];
+const SHADOW = "s";
+const EMPTY = ".";
+const LIT = "#";
 
 function pixelText(text: string, glyphs: Glyphs): string[] {
   const height = glyphs.A.length;
   const advance = glyphs.A[0].length + 1;
-  const grid = Array.from({ length: height + 1 }, () => Array(text.length * advance + 1).fill("."));
+  const grid = Array.from({ length: height + 1 }, () => Array(text.length * advance + 1).fill(EMPTY));
   [...text].forEach((letter, index) => {
     glyphs[letter].forEach((glyphRow, y) => {
       [...glyphRow].forEach((pixel, x) => {
-        if (pixel !== "#") return;
+        if (pixel !== LIT) return;
         const column = index * advance + x;
-        grid[y][column] = ROW_SHADES[Math.round((y * (ROW_SHADES.length - 1)) / (height - 1))];
-        if (grid[y + 1][column + 1] === ".") grid[y + 1][column + 1] = "s";
+        grid[y][column] = shadeForRow(y, height);
+        if (grid[y + 1][column + 1] === EMPTY) grid[y + 1][column + 1] = SHADOW;
       });
     });
   });
   return grid.map((row) => row.join(""));
+}
+
+function shadeForRow(y: number, height: number): string {
+  return ROW_SHADES[Math.round((y * (ROW_SHADES.length - 1)) / (height - 1))];
 }
 
 const LOGO_PALETTE = {
