@@ -70,8 +70,13 @@ describe("App against recorded API responses", () => {
     const { lastFrame } = await openPairing();
     await waitForText(lastFrame, "3rd on this week's leaderboard");
     const frame = stripAnsi(lastFrame()!);
-    expect(frame).toContain("Level 7 · 0 day streak");
+    expect(frame).toContain("0 day streak");
     expect(frame).toContain("0 points today · 1,320 total");
+  });
+
+  it("shows how far the score is from this level to the next", async () => {
+    const { lastFrame } = await openPairing();
+    expect(stripAnsi(lastFrame()!)).toContain("Level 7 ■■■■■■■■□□□□□□□□ Level 8");
   });
 
   it("says when there is nothing to review and goes back on esc", async () => {

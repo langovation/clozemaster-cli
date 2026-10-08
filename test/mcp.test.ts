@@ -25,8 +25,10 @@ vi.mock("../src/api.js", async (importOriginal) => ({
 const pairing: api.LanguagePairing = {
   id: 7,
   baseLanguageName: "English",
+  currentLevelPoints: 450,
   currentStreakDays: 3,
   level: 2,
+  nextLevelPoints: 600,
   numPointsToday: 10,
   score: 500,
   targetLanguageName: "German",

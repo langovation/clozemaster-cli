@@ -4,6 +4,7 @@ import { getCollections, getLanguagePairing, type Collection, type LanguagePairi
 import { myCollections } from "../collectionSort.js";
 import { ErrorMessage } from "../components/ErrorMessage.js";
 import { Hints } from "../components/Hints.js";
+import { LevelProgress } from "../components/LevelProgress.js";
 import { PixelArt } from "../components/PixelArt.js";
 import { Select, type SelectItem } from "../components/Select.js";
 import { Spinner } from "../components/Spinner.js";
@@ -63,9 +64,8 @@ function PairingStats({ leaderboardRank, pairing }: { leaderboardRank?: number; 
       <PixelArt sprite={FLAME} />
       <Box flexDirection="column">
         <Text bold>{pairing.targetLanguageName} from {pairing.baseLanguageName}</Text>
-        <Text>
-          Level {pairing.level} · <Text color={colors.streak}>{pairing.currentStreakDays} day streak</Text>
-        </Text>
+        <LevelProgress pairing={pairing} />
+        <Text color={colors.streak}>{pairing.currentStreakDays} day streak</Text>
         <Text>
           <Text color={colors.gold}>{pairing.numPointsToday.toLocaleString("en")} points today</Text> · {pairing.score.toLocaleString("en")} total
         </Text>

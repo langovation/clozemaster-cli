@@ -3,9 +3,11 @@ import { baseUrl, getAuthToken } from "./config.js";
 export type LanguagePairing = {
   id: number;
   baseLanguageName: string;
+  currentLevelPoints: number;
   currentStreakDays: number;
   currentWeekLeaderboardRank?: number;
   level: number;
+  nextLevelPoints: number;
   numPointsToday: number;
   score: number;
   targetLanguageName: string;
