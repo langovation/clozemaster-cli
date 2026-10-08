@@ -49,7 +49,7 @@ While playing: `1`-`4` picks an answer, `→` gives one hint per sentence, `tab`
 
 ### How it works
 
-It's a local MCP server that talks over stdio. Your AI app starts it in the background whenever it needs it, so you never run it yourself. It uses the login saved by `clozemaster`, so run `clozemaster` and log in once first.
+It's a local MCP server that talks over stdio. Your AI app starts it in the background whenever it needs it, so you never run it yourself. It uses the login saved by `clozemaster`. If you haven't logged in yet, the first request opens your browser to log in, and the AI can carry on once you approve it.
 
 Tools:
 

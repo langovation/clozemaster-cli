@@ -20,9 +20,9 @@ import {
   type OwnCollection,
 } from "./api.js";
 import { getAuthToken } from "./config.js";
+import { startBrowserLogin } from "./mcpLogin.js";
 import { currentVersion } from "./updateCheck.js";
 
-const NOT_LOGGED_IN = "Not logged in to Clozemaster. Run `clozemaster` in a terminal and log in first.";
 
 const INSTRUCTIONS = `Manage the sentences in the user's own Clozemaster collections. Clozemaster teaches a language with cloze sentences: a sentence in the language being learned with one word hidden, which the learner fills in.
 
@@ -115,8 +115,8 @@ function textResult(text: string, isError = false): CallToolResult {
 }
 
 async function runTool(action: () => Promise<unknown>): Promise<CallToolResult> {
-  if (!isLoggedIn()) return textResult(NOT_LOGGED_IN, true);
   try {
+    if (!isLoggedIn()) return textResult(await startBrowserLogin(), true);
     return textResult(JSON.stringify(await action()));
   } catch (error) {
     return textResult(errorMessage(error), true);

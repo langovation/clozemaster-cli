@@ -2,6 +2,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import open from "open";
 import * as api from "../src/api.js";
 import { createMcpServer } from "../src/mcp.js";
 
@@ -15,8 +16,12 @@ vi.mock("../src/api.js", async (importOriginal) => ({
   getLanguagePairings: vi.fn(),
   getOwnCollections: vi.fn(),
   isProSubscriber: vi.fn(),
+  pollCliLogin: vi.fn(),
+  startCliLogin: vi.fn(),
   updateCollectionSentence: vi.fn(),
 }));
+
+vi.mock("open", () => ({ default: vi.fn(async () => undefined) }));
 
 const pairing: api.LanguagePairing = {
   id: 7,
@@ -103,9 +108,19 @@ describe("MCP server", () => {
     expect(client.getInstructions()).toContain("list_language_pairings");
   });
 
-  it("tells the user to log in with the CLI when there is no saved login", async () => {
+  it("opens the browser login when there is no saved login, then uses the approved login", async () => {
+    vi.useFakeTimers();
     vi.stubEnv("CLOZEMASTER_TOKEN", "");
-    expectToolError(await callTool("list_language_pairings"), "Run `clozemaster` in a terminal and log in first");
+    vi.mocked(api.startCliLogin).mockResolvedValue({ deviceCode: "device", expiresIn: 600, pollInterval: 1, userCode: "ABCD-1234", verificationUrl: "https://example.com/cli" });
+    vi.mocked(api.pollCliLogin).mockResolvedValue({ authToken: "1:approved", username: "learner" });
+
+    const result = await callTool("list_language_pairings");
+    expectToolError(result, "ABCD-1234");
+    expect(open).toHaveBeenCalledWith("https://example.com/cli");
+
+    await vi.advanceTimersByTimeAsync(1000);
+    vi.useRealTimers();
+    expect(resultJson(await callTool("list_language_pairings"))).toEqual([{ id: 7, targetLanguage: "German", baseLanguage: "English" }]);
   });
 
   it("lists language pairings with their ids and languages", async () => {
