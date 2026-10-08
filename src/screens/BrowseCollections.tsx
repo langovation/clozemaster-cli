@@ -7,7 +7,7 @@ import { Hints } from "../components/Hints.js";
 import { Select } from "../components/Select.js";
 import { Spinner } from "../components/Spinner.js";
 import { useRequest } from "../useRequest.js";
-import { collectionRoundChoice, type RoundChoice } from "./PickRound.js";
+import { collectionRoundChoice, type RoundChoice } from "../roundChoice.js";
 
 type BrowseCollectionsProps = { onBack: () => void; onPick: (choice: RoundChoice) => void; pairing: LanguagePairing };
 
@@ -17,7 +17,7 @@ function collectionDetail(collection: Collection): string {
 }
 
 export function BrowseCollections({ onBack, onPick, pairing }: BrowseCollectionsProps) {
-  const { data: collections, error, isLoading } = useRequest(() => getCollections(pairing), [pairing.id]);
+  const { error, isLoading, result: collections } = useRequest(() => getCollections(pairing), [pairing.id]);
 
   useInput((_input, key) => {
     if (key.escape) onBack();

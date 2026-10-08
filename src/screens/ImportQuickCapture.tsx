@@ -28,7 +28,7 @@ type ImportQuickCaptureProps = {
 };
 
 export function ImportQuickCapture({ entries, onBack, onImported, pairing }: ImportQuickCaptureProps) {
-  const { data, error, isLoading } = useRequest(
+  const { error, isLoading, result: importTargets } = useRequest(
     async () => ({ collections: await getOwnCollections(pairing), isPro: await isProSubscriber() }),
     [pairing.id],
   );
@@ -67,7 +67,7 @@ export function ImportQuickCapture({ entries, onBack, onImported, pairing }: Imp
   const title = `Import all ${entries.length} ${entries.length === 1 ? "word" : "words"} into a ${pairing.targetLanguageName} collection`;
   if (isLoading) return <Spinner label="Loading your collections…" />;
   if (error) return <ErrorMessage error={error} />;
-  if (!data?.isPro) {
+  if (!importTargets?.isPro) {
     return (
       <Box flexDirection="column" gap={1}>
         <Text bold>{title}</Text>
@@ -92,7 +92,7 @@ export function ImportQuickCapture({ entries, onBack, onImported, pairing }: Imp
           <Text dimColor>Pick one of your collections or make a new one. It gets pinned to your dashboard.</Text>
           <Select
             items={[
-              ...data.collections.map((collection) => ({ label: collection.name, value: collection as OwnCollection | typeof NEW_COLLECTION })),
+              ...importTargets.collections.map((collection) => ({ label: collection.name, value: collection as OwnCollection | typeof NEW_COLLECTION })),
               { label: "+ New collection", value: NEW_COLLECTION },
             ]}
             onSelect={pick}

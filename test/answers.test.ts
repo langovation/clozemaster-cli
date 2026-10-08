@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Sentence } from "../src/api.js";
-import { isCorrectAnswer, isOnTrack, lettersOff, multipleChoiceOptions, pointsFor, splitCloze } from "../src/answers.js";
+import { isCorrectAnswer, isOnTrack, lettersOff, multipleChoiceOptions, pointsFor } from "../src/answers.js";
 
 const sentence: Sentence = {
   alternativeAnswers: ["mucho"],
@@ -11,12 +11,6 @@ const sentence: Sentence = {
   text: "Tengo {{mucha}} hambre.",
   translation: "I'm very hungry.",
 };
-
-describe("splitCloze", () => {
-  it("splits the sentence around the cloze word", () => {
-    expect(splitCloze(sentence.text)).toEqual({ after: " hambre.", before: "Tengo ", cloze: "mucha" });
-  });
-});
 
 const strict = { strictAccents: true };
 const lenient = { strictAccents: false };

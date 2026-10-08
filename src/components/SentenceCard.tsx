@@ -1,7 +1,8 @@
 import React from "react";
 import { Box, Text } from "ink";
 import type { Sentence } from "../api.js";
-import { levelAfterAnswer, MASTERED_LEVEL, splitCloze } from "../answers.js";
+import { levelAfterAnswer, MASTERED_LEVEL } from "../answers.js";
+import { splitCloze } from "../cloze.js";
 import { useSettings } from "../SettingsContext.js";
 import { colors } from "../theme.js";
 

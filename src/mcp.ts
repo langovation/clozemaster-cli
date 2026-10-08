@@ -19,10 +19,9 @@ import {
   type NewCollectionSentence,
   type OwnCollection,
 } from "./api.js";
-import { getAuthToken } from "./config.js";
+import { hasLogin } from "./config.js";
 import { startBrowserLogin } from "./mcpLogin.js";
 import { currentVersion } from "./updateCheck.js";
-
 
 const INSTRUCTIONS = `Manage the sentences in the user's own Clozemaster collections. Clozemaster teaches a language with cloze sentences: a sentence in the language being learned with one word hidden, which the learner fills in.
 
@@ -101,10 +100,6 @@ const newSentence = z.object({
     .describe("Optional reading of the whole sentence shown after answering, e.g. pinyin or romaji. Only for languages not written in Latin script."),
 });
 
-function isLoggedIn(): boolean {
-  return Boolean(getAuthToken() || process.env.CLOZEMASTER_COOKIE);
-}
-
 function errorMessage(error: unknown): string {
   if (error instanceof ProRequiredError) return `${error.message} Upgrade at ${error.upgradeUrl}`;
   return error instanceof Error ? error.message : String(error);
@@ -116,7 +111,7 @@ function textResult(text: string, isError = false): CallToolResult {
 
 async function runTool(action: () => Promise<unknown>): Promise<CallToolResult> {
   try {
-    if (!isLoggedIn()) return textResult(await startBrowserLogin(), true);
+    if (!hasLogin()) return textResult(await startBrowserLogin(), true);
     return textResult(JSON.stringify(await action()));
   } catch (error) {
     return textResult(errorMessage(error), true);

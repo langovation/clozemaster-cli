@@ -9,11 +9,12 @@ import {
   type OwnCollection,
   type QuickCaptureEntry,
 } from "../api.js";
+import { ClozeSentence } from "../components/ClozeSentence.js";
 import { ErrorMessage } from "../components/ErrorMessage.js";
 import { Hints } from "../components/Hints.js";
 import { Spinner } from "../components/Spinner.js";
 import { colors } from "../theme.js";
-import { ClozeSentence, EditQuickCaptureEntry } from "./EditQuickCaptureEntry.js";
+import { EditQuickCaptureEntry } from "./EditQuickCaptureEntry.js";
 import { ImportQuickCapture } from "./ImportQuickCapture.js";
 
 const POLL_INTERVAL_MS = 3000;

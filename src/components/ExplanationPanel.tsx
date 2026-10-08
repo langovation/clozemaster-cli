@@ -109,7 +109,7 @@ function Scrollable({ children }: { children: React.ReactNode }) {
 }
 
 export function ExplanationPanel({ sentence }: { sentence: Sentence }) {
-  const { data: explanation, error, isLoading } = useRequest(() => getExplanation(sentence), [sentence.id]);
+  const { error, isLoading, result: explanation } = useRequest(() => getExplanation(sentence), [sentence.id]);
   return (
     <Box borderStyle="round" borderColor={colors.gold} flexDirection="column" paddingX={1}>
       <Text bold>Explanation</Text>

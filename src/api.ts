@@ -75,11 +75,6 @@ export type Round = {
 
 export type PlayMode = "flashcard" | "listening" | "multiple_choice" | "text_input";
 
-// Listening is the web's listening skill played with text input: hear the sentence, then type the word.
-export function isTypedMode(mode: PlayMode): boolean {
-  return mode === "text_input" || mode === "listening";
-}
-
 function apiModeAndSkill(mode: PlayMode) {
   if (mode === "listening") return { mode: "text_input", skill: "listening" };
   // Flashcards score like multiple choice, and the apps send them that way.

@@ -12,7 +12,7 @@ import { useRequest } from "../useRequest.js";
 type PickLanguagePairingProps = { onOpenSettings: () => void; onPick: (pairing: LanguagePairing) => void; username?: string };
 
 export function PickLanguagePairing({ onOpenSettings, onPick, username }: PickLanguagePairingProps) {
-  const { data: pairings, error, isLoading } = useRequest(getLanguagePairings);
+  const { error, isLoading, result: pairings } = useRequest(getLanguagePairings);
 
   useInput((input) => {
     if (input === "s") onOpenSettings();

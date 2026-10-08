@@ -3,19 +3,16 @@ import { Box, Text, useInput } from "ink";
 import type { PlayMode } from "../api.js";
 import { Hints } from "../components/Hints.js";
 import { Select } from "../components/Select.js";
+import { MODE_LABELS, MODE_ORDER } from "../playModes.js";
 
-export const MODE_LABELS: Record<PlayMode, string> = {
-  flashcard: "Flashcards",
-  listening: "Listening",
-  multiple_choice: "Multiple choice",
-  text_input: "Text input",
+const MODE_DETAILS: Record<PlayMode, string> = {
+  flashcard: "reveal and self-grade",
+  listening: "hear it, then type the word",
+  multiple_choice: "pick from 4",
+  text_input: "type the word",
 };
 
-const MODE_ORDER: PlayMode[] = ["multiple_choice", "text_input", "listening", "flashcard"];
-
-export function nextMode(mode: PlayMode): PlayMode {
-  return MODE_ORDER[(MODE_ORDER.indexOf(mode) + 1) % MODE_ORDER.length];
-}
+const MODE_ITEMS = MODE_ORDER.map((mode) => ({ detail: MODE_DETAILS[mode], label: MODE_LABELS[mode], value: mode }));
 
 type PickModeProps = { onBack: () => void; onPick: (mode: PlayMode) => void; title: string };
 
@@ -28,15 +25,7 @@ export function PickMode({ onBack, onPick, title }: PickModeProps) {
       <Text bold>{title}</Text>
       <Box flexDirection="column">
         <Text bold>How do you want to answer?</Text>
-        <Select
-          items={[
-            { detail: "pick from 4", label: MODE_LABELS.multiple_choice, value: "multiple_choice" as const },
-            { detail: "type the word", label: MODE_LABELS.text_input, value: "text_input" as const },
-            { detail: "hear it, then type the word", label: MODE_LABELS.listening, value: "listening" as const },
-            { detail: "reveal and self-grade", label: MODE_LABELS.flashcard, value: "flashcard" as const },
-          ]}
-          onSelect={onPick}
-        />
+        <Select items={MODE_ITEMS} onSelect={onPick} />
       </Box>
       <Hints hints={["enter to pick", "esc back"]} />
     </Box>

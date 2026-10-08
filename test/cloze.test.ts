@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { clearClozeMarkers, moveCloze } from "../src/cloze.js";
+import { clearClozeMarkers, moveCloze, splitCloze } from "../src/cloze.js";
+
+describe("splitCloze", () => {
+  it("splits the sentence around the cloze word", () => {
+    expect(splitCloze("Tengo {{mucha}} hambre.")).toEqual({ after: " hambre.", before: "Tengo ", cloze: "mucha" });
+  });
+});
 
 describe("moveCloze", () => {
   it("moves the cloze to the next word", () => {

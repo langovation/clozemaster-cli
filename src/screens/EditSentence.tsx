@@ -2,12 +2,12 @@ import React, { useState } from "react";
 import { Box, Text, useInput } from "ink";
 import TextInput from "ink-text-input";
 import { deleteSentence, isProSubscriber, ProRequiredError, updateSentence, type Sentence } from "../api.js";
+import { ClozeSentence } from "../components/ClozeSentence.js";
 import { ErrorMessage } from "../components/ErrorMessage.js";
 import { Hints } from "../components/Hints.js";
 import { Spinner } from "../components/Spinner.js";
 import { colors } from "../theme.js";
 import { useRequest } from "../useRequest.js";
-import { ClozeSentence } from "./EditQuickCaptureEntry.js";
 
 type EditedField = "text" | "translation";
 
@@ -21,7 +21,7 @@ type EditSentenceProps = {
 };
 
 export function EditSentence(props: EditSentenceProps) {
-  const { data: isPro, error, isLoading } = useRequest(isProSubscriber);
+  const { error, isLoading, result: isPro } = useRequest(isProSubscriber);
 
   useInput((_input, key) => {
     if (key.escape) props.onBack();

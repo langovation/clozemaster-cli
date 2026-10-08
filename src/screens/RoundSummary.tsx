@@ -2,7 +2,7 @@ import React, { useEffect } from "react";
 import { Box, Text, useInput } from "ink";
 import type { AnswerResult, Sentence } from "../api.js";
 import { playSoundEffect } from "../audio.js";
-import { splitCloze } from "../answers.js";
+import { ClozeSentence } from "../components/ClozeSentence.js";
 import { Hints } from "../components/Hints.js";
 import { PixelArt } from "../components/PixelArt.js";
 import type { AnsweredSentence } from "../components/SentenceCard.js";
@@ -40,14 +40,12 @@ function firstAttempts(results: RoundResult[]): RoundResult[] {
 }
 
 function PlayedSentence({ result }: { result: RoundResult }) {
-  const { after, before, cloze } = splitCloze(result.sentence.text);
+  const resultColor = result.isCorrect ? colors.brand : colors.danger;
   return (
     <Box flexDirection="column">
       <Text wrap="truncate-end">
-        <Text color={result.isCorrect ? colors.brand : colors.danger}>{result.isCorrect ? "✓ " : "✗ "}</Text>
-        {before}
-        <Text bold color={result.isCorrect ? colors.brand : colors.danger}>{cloze}</Text>
-        {after}
+        <Text color={resultColor}>{result.isCorrect ? "✓ " : "✗ "}</Text>
+        <ClozeSentence color={resultColor} text={result.sentence.text} />
       </Text>
       <Text dimColor wrap="truncate-end">  {result.sentence.translation}</Text>
     </Box>

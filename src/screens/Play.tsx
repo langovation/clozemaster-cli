@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Box, Text, useInput } from "ink";
-import { getRound, isTypedMode, markSentenceKnown, saveAnswer, type AnswerResult, type PlayMode, type Sentence } from "../api.js";
+import { getRound, markSentenceKnown, saveAnswer, type AnswerResult, type PlayMode, type Sentence } from "../api.js";
 import { canPlayAtHalfSpeed, playSentenceAudio, playSentenceAudioAtHalfSpeed, playSoundEffect, preloadSentenceAudio, stopAudio } from "../audio.js";
-import { isCorrectAnswer, multipleChoiceOptions, pointsFor, splitCloze } from "../answers.js";
+import { isCorrectAnswer, multipleChoiceOptions, pointsFor } from "../answers.js";
+import { splitCloze } from "../cloze.js";
 import { canExplain, ExplanationPanel } from "../components/ExplanationPanel.js";
 import { FlashcardAnswer } from "../components/FlashcardAnswer.js";
 import { ErrorMessage } from "../components/ErrorMessage.js";
@@ -15,8 +16,8 @@ import { TextAnswer } from "../components/TextAnswer.js";
 import { useSettings } from "../SettingsContext.js";
 import { colors } from "../theme.js";
 import { useRequest } from "../useRequest.js";
-import { MODE_LABELS, nextMode } from "./PickMode.js";
-import type { RoundChoice } from "./PickRound.js";
+import { isTypedMode, MODE_LABELS, nextMode } from "../playModes.js";
+import type { RoundChoice } from "../roundChoice.js";
 import { EditSentence } from "./EditSentence.js";
 import { RoundSummary, type RoundResult } from "./RoundSummary.js";
 import { SettingsScreen } from "./SettingsScreen.js";
@@ -42,7 +43,7 @@ type PlayProps = {
 
 export function Play({ choice, mode, onMenu, onProgress, onToggleMode }: PlayProps) {
   const [roundNumber, setRoundNumber] = useState(0);
-  const { data: round, error, isLoading } = useRequest(
+  const { error, isLoading, result: round } = useRequest(
     () => getRound({ mode, playDataUrl: choice.playDataUrl, scope: choice.scope }),
     // Listening is its own skill with its own due sentences, so switching to or from it fetches a new round.
     [roundNumber, mode === "listening"],

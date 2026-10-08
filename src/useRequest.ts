@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-export type RequestState<T> = { data?: T; error?: Error; isLoading: boolean };
+export type RequestState<T> = { error?: Error; isLoading: boolean; result?: T };
 
 export function useRequest<T>(load: () => Promise<T>, dependencies: unknown[] = []): RequestState<T> {
   const [state, setState] = useState<RequestState<T>>({ isLoading: true });
@@ -8,7 +8,7 @@ export function useRequest<T>(load: () => Promise<T>, dependencies: unknown[] = 
     let isCurrent = true;
     setState({ isLoading: true });
     load().then(
-      (data) => isCurrent && setState({ data, isLoading: false }),
+      (result) => isCurrent && setState({ isLoading: false, result }),
       (error) => isCurrent && setState({ error, isLoading: false }),
     );
     return () => {

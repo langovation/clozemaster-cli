@@ -4,7 +4,7 @@ import React from "react";
 import { render } from "ink-testing-library";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../src/App.js";
-import { splitCloze } from "../src/answers.js";
+import { splitCloze } from "../src/cloze.js";
 import { configDirectory } from "../src/config.js";
 import { startFakeServer } from "./fakeServer.js";
 import { DOWN, ENTER, ESCAPE, press, settle, stripAnsi, UP, waitForText } from "./helpers.js";

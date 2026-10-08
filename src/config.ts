@@ -27,6 +27,10 @@ export function getAuthToken(): string | undefined {
   return process.env.CLOZEMASTER_TOKEN || readLogins()[baseUrl]?.authToken;
 }
 
+export function hasLogin(): boolean {
+  return Boolean(getAuthToken() || process.env.CLOZEMASTER_COOKIE);
+}
+
 export function getStoredUsername(): string | undefined {
   return readLogins()[baseUrl]?.username;
 }

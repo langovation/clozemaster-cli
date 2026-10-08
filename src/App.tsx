@@ -1,15 +1,17 @@
 import React, { useState } from "react";
 import { Box, useStdout } from "ink";
 import type { AnswerResult, LanguagePairing, PlayMode } from "./api.js";
-import { getAuthToken, getStoredUsername } from "./config.js";
+import { getStoredUsername, hasLogin } from "./config.js";
+import { nextMode } from "./playModes.js";
+import type { RoundChoice } from "./roundChoice.js";
 import { BrowseCollections } from "./screens/BrowseCollections.js";
 import { Login } from "./screens/Login.js";
 import { SettingsScreen } from "./screens/SettingsScreen.js";
 import { UpdateNotice } from "./components/UpdateNotice.js";
 import { SettingsProvider } from "./SettingsContext.js";
 import { PickLanguagePairing } from "./screens/PickLanguagePairing.js";
-import { nextMode, PickMode } from "./screens/PickMode.js";
-import { PickRound, type RoundChoice } from "./screens/PickRound.js";
+import { PickMode } from "./screens/PickMode.js";
+import { PickRound } from "./screens/PickRound.js";
 import { Play } from "./screens/Play.js";
 import { QuickCapture } from "./screens/QuickCapture.js";
 
@@ -28,7 +30,7 @@ export function App({ forceLogin = false }: { forceLogin?: boolean }) {
 }
 
 function Screens({ forceLogin }: { forceLogin: boolean }) {
-  const [isLoggedIn, setIsLoggedIn] = useState(!forceLogin && Boolean(getAuthToken() || process.env.CLOZEMASTER_COOKIE));
+  const [isLoggedIn, setIsLoggedIn] = useState(!forceLogin && hasLogin());
   const [username, setUsername] = useState(getStoredUsername());
   const [pairing, setPairing] = useState<LanguagePairing>();
   const [choice, setChoice] = useState<RoundChoice>();

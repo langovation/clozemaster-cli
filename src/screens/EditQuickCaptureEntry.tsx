@@ -2,8 +2,8 @@ import React, { useState } from "react";
 import { Box, Text, useInput } from "ink";
 import TextInput from "ink-text-input";
 import { updateQuickCaptureEntry, type QuickCaptureEntry } from "../api.js";
-import { splitCloze } from "../answers.js";
 import { moveCloze } from "../cloze.js";
+import { ClozeSentence } from "../components/ClozeSentence.js";
 import { ErrorMessage } from "../components/ErrorMessage.js";
 import { Hints } from "../components/Hints.js";
 import { Spinner } from "../components/Spinner.js";
@@ -16,17 +16,6 @@ type EditQuickCaptureEntryProps = {
   onBack: () => void;
   onSaved: (entry: QuickCaptureEntry) => void;
 };
-
-export function ClozeSentence({ text }: { text: string }) {
-  const { after, before, cloze } = splitCloze(text);
-  return (
-    <Text>
-      {before}
-      <Text bold color={colors.brand}>{cloze}</Text>
-      {after}
-    </Text>
-  );
-}
 
 export function EditQuickCaptureEntry({ entry, onBack, onSaved }: EditQuickCaptureEntryProps) {
   const [sentence, setSentence] = useState(entry.sentence || "");

@@ -1,3 +1,5 @@
+import { cycledIndex } from "./cycle.js";
+
 const ACCENTED_VARIANTS: Record<string, string> = {
   a: "áàâäãåā",
   c: "çćč",
@@ -21,6 +23,5 @@ export function cycleLastLetterAccent(text: string, step: 1 | -1 = 1): string {
   const lastLetter = text.slice(-1);
   const cycle = CYCLES.find((letters) => letters.includes(lastLetter));
   if (!cycle) return text;
-  const next = cycle[(cycle.indexOf(lastLetter) + step + cycle.length) % cycle.length];
-  return text.slice(0, -1) + next;
+  return text.slice(0, -1) + cycle[cycledIndex(cycle.indexOf(lastLetter), step, cycle.length)];
 }
