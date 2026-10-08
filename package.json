@@ -16,7 +16,7 @@
   "scripts": {
     "build": "tsup",
     "build:binary": "npx -y bun scripts/build-binary.ts",
-    "install:local": "npm run build:binary && mkdir -p ~/.local/bin && cp bin/clozemaster-$(node -p \"process.platform + '-' + process.arch\") ~/.local/bin/clozemaster",
+    "install:local": "npm run build:binary && mkdir -p ~/.local/bin && cp bin/clozemaster-$(node -p \"process.platform + '-' + process.arch\") ~/.local/bin/clozemaster.tmp && mv ~/.local/bin/clozemaster.tmp ~/.local/bin/clozemaster",
     "dev": "tsx src/cli.tsx",
     "prepublishOnly": "npm run build",
     "test": "vitest run",
