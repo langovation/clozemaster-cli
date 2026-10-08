@@ -3,7 +3,6 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 import {
-  ApiError,
   createCollection,
   createCollectionSentence,
   deleteCollectionSentence,
@@ -11,6 +10,7 @@ import {
   getCollectionSentences,
   getLanguagePairings,
   getOwnCollections,
+  isApiError,
   isProSubscriber,
   ProRequiredError,
   updateCollectionSentence,
@@ -147,7 +147,7 @@ async function findSentence(pairing: LanguagePairing, collection: OwnCollection,
   try {
     return await getCollectionSentence(pairing, { collection, id });
   } catch (error) {
-    if (error instanceof ApiError && error.status === 404) {
+    if (isApiError(error, 404)) {
       throw new Error(`No sentence with id ${id} in collection ${collection.id}. Call list_sentences for valid ids.`);
     }
     throw error;

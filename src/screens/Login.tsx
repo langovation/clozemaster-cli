@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Box, Text, useInput } from "ink";
 import open from "open";
-import { ApiError, pollCliLogin, startCliLogin, type CliLoginStart } from "../api.js";
+import { isApiError, pollCliLogin, startCliLogin, type CliLoginStart } from "../api.js";
 import { saveLogin } from "../config.js";
 import { Hints } from "../components/Hints.js";
 import { Spinner } from "../components/Spinner.js";
@@ -75,8 +75,8 @@ export function Login({ onLoggedIn }: { onLoggedIn: (username: string) => void }
 }
 
 function loginErrorMessage(error: unknown): string {
-  if (error instanceof ApiError && error.status === 410) return "That login code expired.";
-  if (error instanceof ApiError && error.status === 404) {
+  if (isApiError(error, 410)) return "That login code expired.";
+  if (isApiError(error, 404)) {
     return "Browser login isn't available on this server yet. Set CLOZEMASTER_TOKEN instead.";
   }
   return `Couldn't log in: ${error instanceof Error ? error.message : String(error)}`;

@@ -75,9 +75,9 @@ export type Round = {
 
 export type PlayMode = "flashcard" | "listening" | "multiple_choice" | "text_input";
 
+// Listening is the web's listening skill answered by typing; flashcards score like multiple choice, as the apps send them.
 function apiModeAndSkill(mode: PlayMode) {
   if (mode === "listening") return { mode: "text_input", skill: "listening" };
-  // Flashcards score like multiple choice, and the apps send them that way.
   if (mode === "flashcard") return { mode: "multiple_choice", skill: "vocabulary" };
   return { mode, skill: "vocabulary" };
 }
@@ -125,21 +125,30 @@ export class ApiError extends Error {
   }
 }
 
+export function isApiError(error: unknown, status: number): error is ApiError {
+  return error instanceof ApiError && error.status === status;
+}
+
+const ROUND_SIZE = "10";
+const KNOWN_LEVEL = 4;
+const NEVER_DUE_DATE = "2100-01-01";
+
 type RequestOptions = {
   body?: object;
   method?: "DELETE" | "GET" | "PATCH" | "POST" | "PUT";
   query?: Record<string, string>;
 };
 
-function headers(): Record<string, string> {
+function requestHeaders(): Record<string, string> {
   const authToken = getAuthToken();
+  const cookie = process.env.CLOZEMASTER_COOKIE;
   return {
     Accept: "application/json",
     "Content-Type": "application/json",
     "Time-Zone": Intl.DateTimeFormat().resolvedOptions().timeZone,
     "Time-Zone-Offset-Hours": String(-new Date().getTimezoneOffset() / 60),
     ...(authToken ? { "Auth-Token": authToken } : {}),
-    ...(process.env.CLOZEMASTER_COOKIE ? { Cookie: process.env.CLOZEMASTER_COOKIE } : {}),
+    ...(cookie ? { Cookie: cookie } : {}),
   };
 }
 
@@ -151,21 +160,19 @@ function toUrl(pathOrUrl: string, query?: Record<string, string>): string {
 }
 
 async function request<T>(pathOrUrl: string, { body, method = "GET", query }: RequestOptions = {}): Promise<T> {
-  const response = await fetch(toUrl(pathOrUrl, query), {
-    body: body && JSON.stringify(body),
-    headers: headers(),
-    method,
-  }).catch(() => {
-    throw new ApiError(`Couldn't reach ${baseUrl}. Check your connection.`, 0);
-  });
-  if (response.status === 401) {
-    throw new ApiError("You're not logged in. Run `clozemaster login`.", 401);
-  }
-  if (!response.ok) {
-    throw new ApiError(`Clozemaster responded ${response.status}`, response.status);
-  }
+  const response = await send(toUrl(pathOrUrl, query), { body: body && JSON.stringify(body), headers: requestHeaders(), method });
+  if (response.status === 401) throw new ApiError("You're not logged in. Run `clozemaster login`.", 401);
+  if (!response.ok) throw new ApiError(`Clozemaster responded ${response.status}`, response.status);
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
+}
+
+async function send(url: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, init);
+  } catch {
+    throw new ApiError(`Couldn't reach ${baseUrl}. Check your connection.`, 0);
+  }
 }
 
 export async function startCliLogin(): Promise<CliLoginStart> {
@@ -232,7 +239,6 @@ export async function deleteQuickCaptureEntry(entry: QuickCaptureEntry): Promise
 
 export type OwnCollection = { id: number; name: string };
 
-// The user's own collections, most recently updated first, like the mobile app's import picker.
 export async function getOwnCollections(languagePairing: LanguagePairing): Promise<OwnCollection[]> {
   const { collections } = await request<{ collections: OwnCollection[] }>(`/lp/${languagePairing.id}/c`, {
     query: { filter: "mine", order: "updatedAt" },
@@ -350,13 +356,13 @@ export async function importQuickCaptureEntries(
 }
 
 // The web saves the mode and skill asked for as the user's play options, so only send ones it knows.
-export async function getRound({ mode, playDataUrl, scope }: { mode: PlayMode; playDataUrl: string; scope?: string }) {
+export async function getRound({ mode, playDataUrl, scope }: { mode: PlayMode; playDataUrl: string; scope?: string }): Promise<Round> {
   try {
     return await request<Round>(playDataUrl, {
-      query: { count: "10", ...apiModeAndSkill(mode), ...(scope ? { scope } : {}) },
+      query: { count: ROUND_SIZE, ...apiModeAndSkill(mode), ...(scope ? { scope } : {}) },
     });
   } catch (error) {
-    if (mode === "listening" && error instanceof ApiError && error.status === 400) {
+    if (mode === "listening" && isApiError(error, 400)) {
       throw new ProRequiredError("Your free listening trial is used up. Listening needs Clozemaster Pro.", "listening");
     }
     throw error;
@@ -381,7 +387,7 @@ export async function saveAnswer({
   return request<AnswerResult>(answerUrl, {
     body: {
       correct,
-      date: localDate(),
+      date: localDateString(),
       id: sentence.id,
       ...apiModeAndSkill(mode),
       time: secondsSpent,
@@ -391,7 +397,6 @@ export async function saveAnswer({
   });
 }
 
-// The apps' "Known": fully mastered and never reviewed again.
 // The server only changes the text in the user's own collections; elsewhere just their translation is kept.
 export async function updateSentence({ sentence, upsertUrl }: { sentence: Sentence; upsertUrl: string }): Promise<void> {
   await request(upsertUrl, { body: { updates: [{ id: sentence.id, text: sentence.text, translation: sentence.translation }] }, method: "POST" });
@@ -403,7 +408,7 @@ export async function deleteSentence(sentence: Sentence): Promise<void> {
 }
 
 export async function markSentenceKnown({ sentence, upsertUrl }: { sentence: Sentence; upsertUrl: string }): Promise<void> {
-  await request(upsertUrl, { body: { updates: [{ id: sentence.id, level: 4, next_review: "2100-01-01" }] }, method: "POST" });
+  await request(upsertUrl, { body: { updates: [{ id: sentence.id, level: KNOWN_LEVEL, next_review: NEVER_DUE_DATE }] }, method: "POST" });
 }
 
 type ExplanationJob = {
@@ -412,23 +417,14 @@ type ExplanationJob = {
 
 export class ExplanationLimitError extends Error {}
 
-function explanationFrom(job: ExplanationJob): Explanation | undefined {
-  const { explanation, status, structuredExplanation } = job.tracker;
-  if (status === "failed") throw new Error("Couldn't explain this sentence. Try again later.");
-  if (status !== "complete") return undefined;
-  if (!structuredExplanation && !explanation) throw new Error("No explanation available.");
-  return { structured: structuredExplanation || undefined, text: explanation || undefined };
-}
-
-const POLL_INTERVAL_MS = 2000;
-const MAX_POLLS = 75;
+const EXPLANATION_POLL_INTERVAL_MS = 2000;
+const MAX_EXPLANATION_POLLS = 75;
+const NO_EXPLANATION = "No explanation available.";
 const explanationsInFlight = new Map<number, Promise<Explanation>>();
 
 // Shared per sentence so closing and reopening the panel picks up the same request instead of asking for another.
 export async function getExplanation(sentence: Sentence): Promise<Explanation> {
-  if (sentence.structuredExplanation || sentence.explanation) {
-    return { structured: sentence.structuredExplanation || undefined, text: sentence.explanation || undefined };
-  }
+  if (sentence.structuredExplanation || sentence.explanation) return toExplanation(sentence.structuredExplanation, sentence.explanation);
   if (!explanationsInFlight.has(sentence.id)) {
     const explanation = fetchExplanation(sentence);
     explanationsInFlight.set(sentence.id, explanation);
@@ -437,33 +433,51 @@ export async function getExplanation(sentence: Sentence): Promise<Explanation> {
   return explanationsInFlight.get(sentence.id)!;
 }
 
-// Same flow as the mobile app: use what's there, otherwise ask for one and poll until it's written.
 async function fetchExplanation(sentence: Sentence): Promise<Explanation> {
-  if (!sentence.explanationJobUrl) throw new Error("No explanation available.");
+  const jobUrl = sentence.explanationJobUrl;
+  if (!jobUrl) throw new Error(NO_EXPLANATION);
+  const written = await findWrittenExplanation(jobUrl);
+  if (written) return written;
+  await startExplanationJob(jobUrl);
+  return pollForExplanation(jobUrl);
+}
 
-  // Like the mobile app, a past failure just means asking again.
-  const { tracker } = await request<ExplanationJob>(sentence.explanationJobUrl);
-  const existing = tracker.status === "failed" ? undefined : explanationFrom({ tracker });
-  if (existing) return existing;
+// Like the mobile app, a past failure just means asking again.
+async function findWrittenExplanation(jobUrl: string): Promise<Explanation | undefined> {
+  const job = await request<ExplanationJob>(jobUrl);
+  return job.tracker.status === "failed" ? undefined : completedExplanation(job);
+}
 
+async function startExplanationJob(jobUrl: string): Promise<void> {
   try {
-    await request<ExplanationJob>(sentence.explanationJobUrl, { method: "POST" });
+    await request<ExplanationJob>(jobUrl, { method: "POST" });
   } catch (error) {
-    if (error instanceof ApiError && error.status === 400) {
-      throw new ExplanationLimitError("You've used all your explanations this month.");
-    }
+    if (isApiError(error, 400)) throw new ExplanationLimitError("You've used all your explanations this month.");
     throw error;
   }
+}
 
-  for (let poll = 0; poll < MAX_POLLS; poll++) {
-    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
-    const explanation = explanationFrom(await request<ExplanationJob>(sentence.explanationJobUrl));
+async function pollForExplanation(jobUrl: string): Promise<Explanation> {
+  for (let poll = 0; poll < MAX_EXPLANATION_POLLS; poll++) {
+    await new Promise((resolve) => setTimeout(resolve, EXPLANATION_POLL_INTERVAL_MS));
+    const explanation = completedExplanation(await request<ExplanationJob>(jobUrl));
     if (explanation) return explanation;
   }
   throw new Error("The explanation is taking too long. Try again later.");
 }
 
-function localDate(): string {
+function completedExplanation({ tracker }: ExplanationJob): Explanation | undefined {
+  if (tracker.status === "failed") throw new Error("Couldn't explain this sentence. Try again later.");
+  if (tracker.status !== "complete") return undefined;
+  if (!tracker.structuredExplanation && !tracker.explanation) throw new Error(NO_EXPLANATION);
+  return toExplanation(tracker.structuredExplanation, tracker.explanation);
+}
+
+function toExplanation(structured: StructuredExplanation | null | undefined, text: string | null | undefined): Explanation {
+  return { structured: structured || undefined, text: text || undefined };
+}
+
+function localDateString(): string {
   const now = new Date();
   return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
 }
