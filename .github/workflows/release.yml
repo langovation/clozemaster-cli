@@ -1,0 +1,45 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Check the tag matches package.json
+        run: test "v$(node -p "require('./package.json').version")" = "$GITHUB_REF_NAME"
+
+      - run: npm test
+
+      - run: npm run typecheck
+
+      - run: npm run build:binary -- --all
+
+      # A full release, not a draft or prerelease: install.sh and the update check read releases/latest.
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            bin/clozemaster-darwin-arm64 \
+            bin/clozemaster-darwin-x64 \
+            bin/clozemaster-linux-x64 \
+            bin/clozemaster-linux-arm64 \
+            bin/SHA256SUMS \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            --latest

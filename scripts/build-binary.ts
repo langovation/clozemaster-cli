@@ -1,3 +1,5 @@
+import { mergeChecksums } from "./checksums.ts";
+
 // Ink only loads react-devtools-core in DEV mode, but Bun still bundles the import, so stub it out.
 const stubDevtools: Bun.BunPlugin = {
   name: "stub-react-devtools-core",
@@ -29,12 +31,15 @@ for (const target of targets) {
 }
 
 // The installer refuses to install unless the release has this file and the download matches it.
-const checksumLines = await Promise.all(
+// Merged, so building one platform locally doesn't drop the other platforms' lines.
+const built = await Promise.all(
   targets.map(async (target) => {
     const file = `clozemaster-${target}`;
     const bytes = await Bun.file(`bin/${file}`).arrayBuffer();
-    return `${new Bun.CryptoHasher("sha256").update(bytes).digest("hex")}  ${file}`;
+    return { file, sha256: new Bun.CryptoHasher("sha256").update(bytes).digest("hex") };
   }),
 );
-await Bun.write("bin/SHA256SUMS", `${checksumLines.join("\n")}\n`);
+const checksumsFile = Bun.file("bin/SHA256SUMS");
+const existingChecksums = (await checksumsFile.exists()) ? await checksumsFile.text() : "";
+await Bun.write("bin/SHA256SUMS", mergeChecksums(existingChecksums, built));
 console.log("Wrote bin/SHA256SUMS");
