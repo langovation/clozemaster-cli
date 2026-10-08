@@ -11,7 +11,7 @@ export function useListening({ mode, onHeard, sentence }: ListeningOptions) {
   const [isListening, setIsListening] = useState(mode === "listening");
 
   useEffect(() => {
-    if (isListening) listen(playSentenceAudio);
+    if (isListening && sentence) listen(playSentenceAudio);
   }, [sentence]);
 
   async function listen(play: PlaySentence) {

@@ -433,6 +433,15 @@ describe("Play", () => {
     expect(playSoundEffect).toHaveBeenLastCalledWith("success");
   });
 
+  it("lets the round's done sound play out at the end of a listening round", async () => {
+    const { stdin } = renderPlay("listening");
+    await settle();
+    await press(stdin, "mucha", ENTER, ENTER);
+
+    expect(playSoundEffect).toHaveBeenLastCalledWith("success");
+    expect(playSentenceAudio).not.toHaveBeenCalledWith(undefined);
+  });
+
   it("doesn't chime for a wrong answer", async () => {
     const { stdin } = renderPlay("text_input");
     await settle();
