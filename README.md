@@ -12,6 +12,8 @@ curl -fsSL https://www.clozemaster.com/install-cli.sh | sh
 
 Then type `clozemaster` to play.
 
+The installer downloads the executable for your platform from the latest [GitHub release](https://github.com/langovation/clozemaster-cli/releases/latest) and checks it against the release's `SHA256SUMS`. That catches a corrupted or truncated download; it isn't a signature, so it doesn't prove who built the file.
+
 ### Uninstall
 
 ```sh

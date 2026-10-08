@@ -42,7 +42,7 @@ main() {
 }
 
 download() {
-  curl -fsSL "$1" -o "$2" || { echo "Download failed: $1" >&2; exit 1; }
+  curl --proto '=https' --tlsv1.2 -fsSL --retry 3 "$1" -o "$2" || { echo "Download failed: $1" >&2; exit 1; }
 }
 
 verify_checksum() {
