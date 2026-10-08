@@ -28,7 +28,9 @@ const ANSWER_HINTS: Record<PlayMode, string> = {
   text_input: "↑ accent",
 };
 
-const HALF_SPEED_HINT = canPlayAtHalfSpeed ? ["h half speed"] : [];
+const REPLAY_HINTS = canPlayAtHalfSpeed ? ["p replay", "h half speed"] : ["p replay"];
+
+type PlaySentence = typeof playSentenceAudio;
 
 type PlayProps = {
   choice: RoundChoice;
@@ -164,10 +166,8 @@ function PlayRound({ choice, isTextEditable, mode, onMenu, onPlayAgain, onProgre
       onMenu();
     }
     if (input === "e" && isExplainable) setIsExplaining((current) => !current);
-    if (input === "p" && isListening && !answered) listenToSentence();
-    else if (input === "p" && canPlayAudio) playSentenceAudio(sentence);
-    if (input === "h" && canPlayAtHalfSpeed && isListening && !answered) listenToSentence(playSentenceAudioAtHalfSpeed);
-    else if (input === "h" && canPlayAtHalfSpeed && canPlayAudio) playSentenceAudioAtHalfSpeed(sentence);
+    if (input === "p") replaySentence(playSentenceAudio);
+    if (input === "h" && canPlayAtHalfSpeed) replaySentence(playSentenceAudioAtHalfSpeed);
     // Not once a flashcard is revealed, or the next mode would show the answer it asks for.
     if (key.tab && !answered && !isRevealed) onToggleMode();
     if (key.return && answered) goToNextSentence();
@@ -183,8 +183,13 @@ function PlayRound({ choice, isTextEditable, mode, onMenu, onPlayAgain, onProgre
     if (isChimeDone && mode !== "listening" && settings.audio) playSentenceAudio(sentence);
   }
 
+  function replaySentence(play: PlaySentence) {
+    if (isListening && !answered) listenToSentence(play);
+    else if (canPlayAudio) play(sentence);
+  }
+
   // Only reveals when this sentence's audio finished, not when moving on or a replay cut it short.
-  async function listenToSentence(play = playSentenceAudio) {
+  async function listenToSentence(play: PlaySentence = playSentenceAudio) {
     if (await play(sentence)) {
       setIsListening(false);
       shownAt.current = Date.now();
@@ -329,13 +334,13 @@ function PlayRound({ choice, isTextEditable, mode, onMenu, onPlayAgain, onProgre
       <Hints
         hints={
           isListening && !answered
-            ? ["p replay", ...HALF_SPEED_HINT, "esc back"]
+            ? [...REPLAY_HINTS, "esc back"]
             : answered
-            ? ["enter to continue", ...(canPlayAudio ? ["p replay", ...HALF_SPEED_HINT] : []), ...(isExplainable ? [isExplaining ? "e hide explanation" : "e explain"] : []), "s settings", ...(upsertUrl ? ["c edit card"] : []), "esc back"]
+            ? ["enter to continue", ...(canPlayAudio ? REPLAY_HINTS : []), ...(isExplainable ? [isExplaining ? "e hide explanation" : "e explain"] : []), "s settings", ...(upsertUrl ? ["c edit card"] : []), "esc back"]
             : [
                 ...((isTypedMode(mode) || (mode === "flashcard" && !isRevealed)) && !hasUsedHint ? ["→ hint"] : []),
                 ...(isRevealed ? [] : [ANSWER_HINTS[mode]]),
-                ...(isRevealed && canPlayAudio ? ["p replay", ...HALF_SPEED_HINT] : []),
+                ...(isRevealed && canPlayAudio ? REPLAY_HINTS : []),
                 ...(isExplainable ? ["e explain"] : []),
                 ...(canGoBack ? ["b previous card"] : []),
                 ...(isRevealed ? [] : [`tab: ${MODE_LABELS[nextMode(mode)].toLowerCase()}`]),

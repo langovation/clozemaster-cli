@@ -5,7 +5,9 @@ import path from "node:path";
 import { getSentenceAudioUrl, type Sentence } from "./api.js";
 import { SOUND_EFFECT_FILES } from "./soundEffectFiles.js";
 
-const PLAYERS: { args: string[]; command: string }[] =
+type AudioPlayer = { args: string[]; command: string };
+
+const PLAYERS: AudioPlayer[] =
   process.platform === "darwin"
     ? [{ args: [], command: "afplay" }]
     : [
@@ -15,7 +17,7 @@ const PLAYERS: { args: string[]; command: string }[] =
       ];
 
 // Same players at half speed, keeping the pitch. mpg123 can't, so it isn't one.
-const HALF_SPEED_PLAYERS: { args: string[]; command: string }[] =
+const HALF_SPEED_PLAYERS: AudioPlayer[] =
   process.platform === "darwin"
     ? [{ args: ["-r", "0.5", "-q", "1"], command: "afplay" }]
     : [
@@ -100,14 +102,14 @@ export async function playSoundEffect(soundEffect: SoundEffect): Promise<boolean
 
 // Resolves true once the sentence has played (or couldn't be), false if something else stopped it.
 export function playSentenceAudio(sentence: Sentence): Promise<boolean> {
-  return playSentenceWith(sentence, PLAYERS);
+  return playSentence(sentence, PLAYERS);
 }
 
 export function playSentenceAudioAtHalfSpeed(sentence: Sentence): Promise<boolean> {
-  return playSentenceWith(sentence, HALF_SPEED_PLAYERS);
+  return playSentence(sentence, HALF_SPEED_PLAYERS);
 }
 
-async function playSentenceWith(sentence: Sentence, players: typeof PLAYERS): Promise<boolean> {
+async function playSentence(sentence: Sentence, players: AudioPlayer[]): Promise<boolean> {
   stopAudio();
   const request = latestRequest;
   try {
