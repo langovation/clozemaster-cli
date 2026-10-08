@@ -164,6 +164,10 @@ function summarizePairing({ id, baseLanguageName, targetLanguageName }: Language
   return { id, targetLanguage: targetLanguageName, baseLanguage: baseLanguageName };
 }
 
+function summarizeCollection({ id, name }: OwnCollection) {
+  return { id, name };
+}
+
 function summarizeSentence({ id, alternativeAnswers, hint, notes, pronunciation, text, translation }: CollectionSentence) {
   return { id, text, translation, hint, notes, alternativeAnswers, pronunciation };
 }
@@ -237,7 +241,7 @@ export function createMcpServer(): McpServer {
         "List the user's own collections in a language pairing, most recently updated first. Returns [{ id, name }]. Only these collections can be read or changed with the sentence tools.",
       inputSchema: { languagePairingId },
     },
-    ({ languagePairingId }) => runTool(async () => getOwnCollections(await findLanguagePairing(languagePairingId))),
+    ({ languagePairingId }) => runTool(async () => (await getOwnCollections(await findLanguagePairing(languagePairingId))).map(summarizeCollection)),
   );
 
   server.registerTool(
@@ -247,7 +251,7 @@ export function createMcpServer(): McpServer {
       description: "Create a new, empty collection owned by the user in a language pairing. Returns { id, name }; pass that id as collectionId to add_sentences.",
       inputSchema: { languagePairingId, name: nonEmptyText().describe("Name of the new collection, e.g. `Kitchen words`.") },
     },
-    ({ languagePairingId, name }) => runTool(async () => createCollection(await findLanguagePairing(languagePairingId), name)),
+    ({ languagePairingId, name }) => runTool(async () => summarizeCollection(await createCollection(await findLanguagePairing(languagePairingId), name))),
   );
 
   server.registerTool(

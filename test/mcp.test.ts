@@ -180,6 +180,18 @@ describe("MCP server", () => {
     expect(api.getOwnCollections).toHaveBeenCalledWith(pairing);
   });
 
+  it("lists only each collection's id and name, not the rest of what the server sends", async () => {
+    vi.mocked(api.getOwnCollections).mockResolvedValue([{ ...collection, playDataUrl: "https://example.com/play", numSentences: 3 } as api.OwnCollection]);
+    const result = await callTool("list_collections", { languagePairingId: 7 });
+    expect(resultJson(result)).toEqual([collection]);
+  });
+
+  it("returns only the new collection's id and name", async () => {
+    vi.mocked(api.createCollection).mockResolvedValue({ ...collection, playDataUrl: "https://example.com/play" } as api.OwnCollection);
+    const result = await callTool("create_collection", { languagePairingId: 7, name: "Food" });
+    expect(resultJson(result)).toEqual(collection);
+  });
+
   it("reports an unknown language pairing id as a tool error", async () => {
     expectToolError(await callTool("list_collections", { languagePairingId: 99 }), "No language pairing with id 99");
   });
