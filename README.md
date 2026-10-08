@@ -159,3 +159,7 @@ From a clean, pushed `main`, the script:
 4. Opens a web repo PR setting `lib/cli/cli-version.txt` to the new version. Every CLI reads that file on launch and, if it's older, tells the user to rerun the install line, so merge it last. The script looks for the web repo next to this one; set `CLOZEMASTER_WEB_REPO` if it's elsewhere.
 
 The copy of `install.sh` served at clozemaster.com lives in the web repo at `lib/cli/install-cli.sh`.
+
+## License
+
+The code is [MIT](LICENSE). The Clozemaster name, logo, pixel art and sound effects are not; see [TRADEMARKS.md](TRADEMARKS.md).
