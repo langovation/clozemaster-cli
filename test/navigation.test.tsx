@@ -246,6 +246,14 @@ describe("App navigation", () => {
       expect(stripAnsi(lastFrame()!)).toMatch(/❯ Translation\s+hidden/);
     });
 
+    it("cycles the round length", async () => {
+      const { lastFrame, stdin } = await openSettings();
+      await press(stdin, "k");
+      expect(stripAnsi(lastFrame()!)).toMatch(/❯ Round length\s+10/);
+      await press(stdin, " ");
+      expect(stripAnsi(lastFrame()!)).toMatch(/❯ Round length\s+20/);
+    });
+
     it("goes back with q", async () => {
       const { lastFrame, stdin } = await openSettings();
       await press(stdin, "q");

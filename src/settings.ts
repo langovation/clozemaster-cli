@@ -9,6 +9,7 @@ export type Settings = {
   hints: boolean;
   masteryBeforeAnswering: boolean;
   pronunciation: boolean;
+  roundLength: number;
   soundEffects: boolean;
   spellingHints: boolean;
   strictAccents: boolean;
@@ -22,6 +23,7 @@ export const DEFAULT_SETTINGS: Settings = {
   hints: true,
   masteryBeforeAnswering: false,
   pronunciation: true,
+  roundLength: 10,
   soundEffects: true,
   spellingHints: true,
   strictAccents: true,

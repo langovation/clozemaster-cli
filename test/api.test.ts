@@ -259,13 +259,19 @@ describe("api requests", () => {
       ["flashcard", "flashcard", "vocabulary"],
     ] as const)("asks for a %s round as mode %s and skill %s", async (mode, apiMode, skill) => {
       const fetch = stubFetch(200, { collectionClozeSentences: [], wordBank: [] });
-      await api.getRound({ mode, playDataUrl: "https://example.com/play" });
+      await api.getRound({ mode, playDataUrl: "https://example.com/play", roundLength: 10 });
       expect(Object.fromEntries(lastRequest(fetch).url.searchParams)).toEqual({ count: "10", mode: apiMode, skill });
+    });
+
+    it("asks for as many sentences as the round length", async () => {
+      const fetch = stubFetch(200, { collectionClozeSentences: [], wordBank: [] });
+      await api.getRound({ mode: "text_input", playDataUrl: "https://example.com/play", roundLength: 30 });
+      expect(lastRequest(fetch).url.searchParams.get("count")).toBe("30");
     });
 
     it("asks for a scope when given one", async () => {
       const fetch = stubFetch(200, { collectionClozeSentences: [], wordBank: [] });
-      await api.getRound({ mode: "text_input", playDataUrl: "/lp/7/play", scope: "ready_for_review" });
+      await api.getRound({ mode: "text_input", playDataUrl: "/lp/7/play", roundLength: 10, scope: "ready_for_review" });
       const { url } = lastRequest(fetch);
       expect(url.pathname).toBe("/api/v1/lp/7/play");
       expect(url.searchParams.get("scope")).toBe("ready_for_review");
@@ -273,14 +279,14 @@ describe("api requests", () => {
 
     it("says listening needs Pro once the free trial is used up", async () => {
       stubFetch(400);
-      const round = api.getRound({ mode: "listening", playDataUrl: "https://example.com/play" });
+      const round = api.getRound({ mode: "listening", playDataUrl: "https://example.com/play", roundLength: 10 });
       await expect(round).rejects.toBeInstanceOf(api.ProRequiredError);
       await expect(round).rejects.toMatchObject({ upgradeUrl: expect.stringMatching(/\/pro\?placement=cli_listening$/) });
     });
 
     it("passes on a 400 for other modes", async () => {
       stubFetch(400);
-      await expect(api.getRound({ mode: "text_input", playDataUrl: "https://example.com/play" })).rejects.toBeInstanceOf(api.ApiError);
+      await expect(api.getRound({ mode: "text_input", playDataUrl: "https://example.com/play", roundLength: 10 })).rejects.toBeInstanceOf(api.ApiError);
     });
 
     it("saves an answer with the local date, time spent and hint use", async () => {

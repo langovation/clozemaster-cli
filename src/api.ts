@@ -132,7 +132,6 @@ export function isApiError(error: unknown, status: number): error is ApiError {
 }
 
 const REQUEST_TIMEOUT_MS = 30_000;
-const ROUND_SIZE = "10";
 const KNOWN_LEVEL = 4;
 const NEVER_DUE_DATE = "2100-01-01";
 
@@ -373,10 +372,20 @@ export async function importQuickCaptureEntries(
 }
 
 // The web saves the mode and skill asked for as the user's play options, so only send ones it knows.
-export async function getRound({ mode, playDataUrl, scope }: { mode: PlayMode; playDataUrl: string; scope?: string }): Promise<Round> {
+export async function getRound({
+  mode,
+  playDataUrl,
+  roundLength,
+  scope,
+}: {
+  mode: PlayMode;
+  playDataUrl: string;
+  roundLength: number;
+  scope?: string;
+}): Promise<Round> {
   try {
     return await request<Round>(playDataUrl, {
-      query: { count: ROUND_SIZE, ...apiModeAndSkill(mode), ...(scope ? { scope } : {}) },
+      query: { count: String(roundLength), ...apiModeAndSkill(mode), ...(scope ? { scope } : {}) },
     });
   } catch (error) {
     if (mode === "listening" && isApiError(error, 400)) {

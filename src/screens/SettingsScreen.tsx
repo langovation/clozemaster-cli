@@ -30,10 +30,12 @@ const ROWS: SettingRow[] = [
   { description: "show pronunciation after answering", key: "pronunciation", label: "Pronunciation", values: [true, false] },
   { description: "play the sentence out loud after answering, p to replay", key: "audio", label: "Audio", values: [true, false] },
   { description: "a chime for a right answer and a finished round", key: "soundEffects", label: "Sound effects", values: [true, false] },
+  { description: "how many sentences each round has", key: "roundLength", label: "Round length", values: [5, 10, 20, 30, 50, 100] },
 ];
 
 function valueLabel(value: Settings[keyof Settings]): string {
   if (typeof value === "boolean") return value ? "on" : "off";
+  if (typeof value === "number") return String(value);
   return TRANSLATION_LABELS[value];
 }
 

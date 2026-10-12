@@ -55,6 +55,12 @@ describe("Play", () => {
     vi.spyOn(api, "saveAnswer").mockResolvedValue({ languagePairing: progress });
   });
 
+  it("asks for a round as long as the round length setting", async () => {
+    renderPlay("multiple_choice", { roundLength: 30 });
+    await settle();
+    expect(api.getRound).toHaveBeenCalledWith(expect.objectContaining({ roundLength: 30 }));
+  });
+
   it("fills in a correct answer in green and finishes the round", async () => {
     const { lastFrame, stdin } = renderPlay("multiple_choice");
     await settle();
@@ -658,7 +664,7 @@ describe("Play", () => {
     it("asks for the round in the mode being played", async () => {
       renderPlay("listening");
       await settle();
-      expect(api.getRound).toHaveBeenCalledWith({ mode: "listening", playDataUrl: choice.playDataUrl, scope: undefined });
+      expect(api.getRound).toHaveBeenCalledWith({ mode: "listening", playDataUrl: choice.playDataUrl, roundLength: 10, scope: undefined });
     });
 
     it("loads a new round when switching to listening", async () => {

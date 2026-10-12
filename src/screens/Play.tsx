@@ -5,6 +5,7 @@ import { ErrorMessage } from "../components/ErrorMessage.js";
 import { Hints } from "../components/Hints.js";
 import { Spinner } from "../components/Spinner.js";
 import type { RoundChoice } from "../roundChoice.js";
+import { useSettings } from "../SettingsContext.js";
 import { useRequest } from "../useRequest.js";
 import { PlayRound } from "./PlayRound.js";
 
@@ -18,8 +19,9 @@ type PlayProps = {
 
 export function Play({ choice, mode, onMenu, onProgress, onToggleMode }: PlayProps) {
   const [roundNumber, setRoundNumber] = useState(0);
+  const { settings } = useSettings();
   const { error, isLoading, result: round } = useRequest(
-    () => getRound({ mode, playDataUrl: choice.playDataUrl, scope: choice.scope }),
+    () => getRound({ mode, playDataUrl: choice.playDataUrl, roundLength: settings.roundLength, scope: choice.scope }),
     // Listening has its own due sentences, so only switching to or from it needs a new round.
     [roundNumber, mode === "listening"],
   );
