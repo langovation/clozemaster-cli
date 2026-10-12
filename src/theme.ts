@@ -1,5 +1,6 @@
 export const colors = {
   brand: "#5CB85C",
+  brandLight: "#A8D8A8",
   danger: "#D9534F",
   gold: "#D9A441",
   streak: "#FF6600",

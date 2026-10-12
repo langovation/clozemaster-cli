@@ -5,6 +5,7 @@ import open from "open";
 import * as api from "../src/api.js";
 import { ErrorMessage } from "../src/components/ErrorMessage.js";
 import { ExplanationPanel } from "../src/components/ExplanationPanel.js";
+import { RoundProgress } from "../src/components/RoundProgress.js";
 import { Select } from "../src/components/Select.js";
 import { DOWN, ENTER, press, settle, showsInColor, stripAnsi, UP, waitForText } from "./helpers.js";
 
@@ -58,6 +59,30 @@ describe("Select", () => {
     expect(frame).toContain("❯ Item 15");
     expect(frame).not.toContain("Item 3\n");
     expect(frame).toContain("15/15");
+  });
+});
+
+describe("RoundProgress", () => {
+  it("shows one square per sentence in a short round", () => {
+    const { lastFrame } = render(<RoundProgress results={[true, false]} total={10} />);
+    expect(stripAnsi(lastFrame()!)).toBe("■■□□□□□□□□ 3/10");
+  });
+
+  it("fits a long round in 50 squares, two sentences to a square", () => {
+    const { lastFrame } = render(<RoundProgress results={[true, true]} total={100} />);
+    expect(stripAnsi(lastFrame()!)).toBe(`■${"□".repeat(49)} 3/100`);
+  });
+
+  it("shows a half-answered square in a lighter colour", () => {
+    const { lastFrame } = render(<RoundProgress results={[true, true, true]} total={100} />);
+    expect(showsInColor(lastFrame()!, "■", "brand")).toBe(true);
+    expect(showsInColor(lastFrame()!, "■", "brandLight")).toBe(true);
+  });
+
+  it("shows a square with a miss in red", () => {
+    const { lastFrame } = render(<RoundProgress results={[true, false]} total={100} />);
+    expect(showsInColor(lastFrame()!, "■", "danger")).toBe(true);
+    expect(showsInColor(lastFrame()!, "■", "brand")).toBe(false);
   });
 });
 
