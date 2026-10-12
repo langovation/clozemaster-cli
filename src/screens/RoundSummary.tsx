@@ -1,5 +1,5 @@
-import React, { useEffect } from "react";
-import { Box, Text, useInput } from "ink";
+import React, { useEffect, useState } from "react";
+import { Box, Text, useInput, useStdout } from "ink";
 import type { LanguagePairingProgress, Sentence } from "../api.js";
 import { playSoundEffect } from "../audio.js";
 import { ClozeSentence } from "../components/ClozeSentence.js";
@@ -11,6 +11,12 @@ import { TROPHY } from "../sprites.js";
 import { colors } from "../theme.js";
 
 export type RoundResult = AnsweredSentence & { sentence: Sentence; usedHint: boolean };
+
+// Every row on screen besides the sentence list: padding, trophy, stats box, daily goal, hints and the gaps between them,
+// plus one spare so Ink never has to redraw the whole terminal.
+const CHROME_ROWS = 20;
+const ROWS_PER_SENTENCE = 2;
+const DEFAULT_TERMINAL_ROWS = 24;
 
 type RoundSummaryProps = {
   elapsedSeconds: number;
@@ -82,6 +88,10 @@ function DailyGoal({ progress }: { progress: LanguagePairingProgress }) {
   );
 }
 
+function visibleSentenceCount(terminalRows: number, sentenceCount: number): number {
+  return Math.min(Math.max(Math.floor((terminalRows - CHROME_ROWS) / ROWS_PER_SENTENCE), 1), sentenceCount);
+}
+
 export function RoundSummary({ elapsedSeconds, onMenu, onPlayAgain, progress, results }: RoundSummaryProps) {
   const { settings } = useSettings();
 
@@ -89,12 +99,26 @@ export function RoundSummary({ elapsedSeconds, onMenu, onPlayAgain, progress, re
     if (settings.soundEffects) playSoundEffect("success");
   }, []);
 
-  useInput((_input, key) => {
+  const { stdout } = useStdout();
+  const [firstVisible, setFirstVisible] = useState(0);
+  const playedSentences = firstAttempts(results);
+  const visibleCount = visibleSentenceCount(stdout.rows || DEFAULT_TERMINAL_ROWS, playedSentences.length);
+  const lastFirstVisible = playedSentences.length - visibleCount;
+  const isScrollable = lastFirstVisible > 0;
+
+  function scrollBy(step: number) {
+    setFirstVisible((index) => Math.min(Math.max(index + step, 0), lastFirstVisible));
+  }
+
+  useInput((input, key) => {
     if (key.return) onPlayAgain();
     if (key.escape) onMenu();
+    if (key.upArrow || input === "k") scrollBy(-1);
+    if (key.downArrow || input === "j") scrollBy(1);
   });
 
   const points = results.reduce((sum, result) => sum + result.points, 0);
+  const shownFirst = Math.min(firstVisible, lastFirstVisible);
 
   return (
     <Box flexDirection="column" gap={1}>
@@ -108,11 +132,17 @@ export function RoundSummary({ elapsedSeconds, onMenu, onPlayAgain, progress, re
       <RoundStats elapsedSeconds={elapsedSeconds} results={results} />
       {progress && <DailyGoal progress={progress} />}
       <Box flexDirection="column">
-        {firstAttempts(results).map((result) => (
+        {playedSentences.slice(shownFirst, shownFirst + visibleCount).map((result) => (
           <PlayedSentence key={result.sentence.id} result={result} />
         ))}
       </Box>
-      <Hints hints={["enter: next round", "esc back"]} />
+      <Hints
+        hints={[
+          ...(isScrollable ? [`↑↓ scroll ${shownFirst + 1}–${shownFirst + visibleCount}/${playedSentences.length}`] : []),
+          "enter: next round",
+          "esc back",
+        ]}
+      />
     </Box>
   );
 }
