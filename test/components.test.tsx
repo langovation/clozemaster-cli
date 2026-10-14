@@ -63,26 +63,26 @@ describe("Select", () => {
 });
 
 describe("RoundProgress", () => {
-  it("shows one square per sentence in a short round", () => {
-    const { lastFrame } = render(<RoundProgress results={[true, false]} total={10} />);
+  it("fills one square per correct answer in a short round", () => {
+    const { lastFrame } = render(<RoundProgress results={[true, true]} total={10} />);
     expect(stripAnsi(lastFrame()!)).toBe("■■□□□□□□□□ 3/10");
   });
 
-  it("fits a long round in 50 squares, two sentences to a square", () => {
-    const { lastFrame } = render(<RoundProgress results={[true, true]} total={100} />);
-    expect(stripAnsi(lastFrame()!)).toBe(`■${"□".repeat(49)} 3/100`);
+  it("doesn't fill or colour a square for a missed sentence", () => {
+    const { lastFrame } = render(<RoundProgress results={[true, false]} total={11} />);
+    expect(stripAnsi(lastFrame()!)).toBe("■□□□□□□□□□ 3/11");
+    expect(showsInColor(lastFrame()!, "■", "danger")).toBe(false);
   });
 
-  it("shows a half-answered square in a lighter colour", () => {
-    const { lastFrame } = render(<RoundProgress results={[true, true, true]} total={100} />);
+  it("fits a long round in 10 squares", () => {
+    const { lastFrame } = render(<RoundProgress results={Array(20).fill(true)} total={100} />);
+    expect(stripAnsi(lastFrame()!)).toBe("■■□□□□□□□□ 21/100");
+  });
+
+  it("shows a partly filled square in a lighter colour", () => {
+    const { lastFrame } = render(<RoundProgress results={Array(15).fill(true)} total={100} />);
     expect(showsInColor(lastFrame()!, "■", "brand")).toBe(true);
     expect(showsInColor(lastFrame()!, "■", "brandLight")).toBe(true);
-  });
-
-  it("shows a square with a miss in red", () => {
-    const { lastFrame } = render(<RoundProgress results={[true, false]} total={100} />);
-    expect(showsInColor(lastFrame()!, "■", "danger")).toBe(true);
-    expect(showsInColor(lastFrame()!, "■", "brand")).toBe(false);
   });
 });
 

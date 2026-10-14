@@ -831,7 +831,7 @@ describe("Play", () => {
       const { lastFrame, stdin } = renderPlay("flashcard");
       await settle();
       await press(stdin, " ", "1");
-      expect(stripAnsi(lastFrame()!)).toContain("■□□ 2/3");
+      expect(stripAnsi(lastFrame()!)).toContain("□□ 2/3");
     });
 
     it("shows the round's title", async () => {
