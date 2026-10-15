@@ -282,7 +282,14 @@ describe("MCP server", () => {
     const update = { text: "Ich {{hatte}} Hunger.", translation: "I was hungry." };
     const result = await callTool("update_sentence", { ...ids, sentenceId: 900, ...update });
     expect(resultJson(result)).toEqual({ id: 900, ...update });
-    expect(api.updateCollectionSentence).toHaveBeenCalledWith(pairing, { collection, id: 900, ...update });
+    expect(api.updateCollectionSentence).toHaveBeenCalledWith(pairing, { collection, id: 900, sentence: update });
+  });
+
+  it("updates a sentence's hint, notes and alternative answers", async () => {
+    const update = { text: "Ich {{hatte}} Hunger.", translation: "I was hungry.", hint: "haben", notes: "Past tense", alternativeAnswers: ["hatt"] };
+    const result = await callTool("update_sentence", { ...ids, sentenceId: 900, ...update });
+    expect(resultJson(result)).toEqual({ id: 900, ...update });
+    expect(api.updateCollectionSentence).toHaveBeenCalledWith(pairing, { collection, id: 900, sentence: update });
   });
 
   it("doesn't update a sentence the collection doesn't have", async () => {

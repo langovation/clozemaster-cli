@@ -339,10 +339,11 @@ export async function createCollectionSentence(
 // Callers check the sentence exists first, so an update never saves a different sentence by mistake.
 export async function updateCollectionSentence(
   languagePairing: LanguagePairing,
-  { collection, id, text, translation }: { collection: OwnCollection; id: number; text: string; translation: string },
+  { collection, id, sentence }: { collection: OwnCollection; id: number; sentence: NewCollectionSentence },
 ): Promise<void> {
+  const { alternativeAnswers, ...fields } = sentence;
   const response = await request<{ errors?: string }>(collectionSentencesPath(languagePairing, collection), {
-    body: { updates: [{ id, text, translation }] },
+    body: { updates: [{ id, ...fields, alternative_answers: alternativeAnswers?.join(",") }] },
     method: "POST",
   });
   if (response.errors) throw new Error(response.errors);

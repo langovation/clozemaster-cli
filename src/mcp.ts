@@ -209,10 +209,10 @@ async function addSentences(input: CollectionIds & { sentences: NewCollectionSen
   return { added, failed };
 }
 
-async function updateSentence(input: SentenceIds & { text: string; translation: string }) {
-  const { pairing, collection } = await findPairingAndCollectionWithSentence(input);
-  await updateCollectionSentence(pairing, { collection, id: input.sentenceId, text: input.text, translation: input.translation });
-  return { id: input.sentenceId, text: input.text, translation: input.translation };
+async function updateSentence({ languagePairingId, collectionId, sentenceId, ...sentence }: SentenceIds & NewCollectionSentence) {
+  const { pairing, collection } = await findPairingAndCollectionWithSentence({ languagePairingId, collectionId, sentenceId });
+  await updateCollectionSentence(pairing, { collection, id: sentenceId, sentence });
+  return { id: sentenceId, ...sentence };
 }
 
 async function deleteSentence(input: SentenceIds) {
@@ -294,8 +294,8 @@ export function createMcpServer(): McpServer {
     "update_sentence",
     {
       annotations: REPLACES,
-      description: `Replace the text and translation of a sentence in one of the user's own collections. Send both, even if only one changes. text is in the pairing's targetLanguage with exactly one word wrapped in double curly braces, the single word the learner is meant to learn, e.g. ${CLOZE_EXAMPLE}; translation is the whole sentence in the pairing's baseLanguage. Returns { id, text, translation }.`,
-      inputSchema: { languagePairingId, collectionId, sentenceId, text: clozeText, translation },
+      description: `Change a sentence in one of the user's own collections, keeping the learner's progress on it. Send text and translation, even if only one changes; hint, notes, alternativeAnswers and pronunciation stay as they are unless sent. text is in the pairing's targetLanguage with exactly one word wrapped in double curly braces, the single word the learner is meant to learn, e.g. ${CLOZE_EXAMPLE}; translation is the whole sentence in the pairing's baseLanguage. Returns the sentence's id and the fields sent.`,
+      inputSchema: { languagePairingId, collectionId, sentenceId, ...newSentence.shape },
     },
     (input) => runTool(() => updateSentence(input)),
   );

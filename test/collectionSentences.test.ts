@@ -40,14 +40,23 @@ describe("collection sentences", () => {
 
   it("updates a sentence through the upsert endpoint", async () => {
     const fetch = stubResponse({ ids: [900] });
-    await updateCollectionSentence(pairing, { collection, id: 900, text: "Ich {{hatte}} Hunger.", translation: "I was hungry." });
+    await updateCollectionSentence(pairing, { collection, id: 900, sentence: { text: "Ich {{hatte}} Hunger.", translation: "I was hungry." } });
     expect(requestBody(fetch)).toEqual({ updates: [{ id: 900, text: "Ich {{hatte}} Hunger.", translation: "I was hungry." }] });
+  });
+
+  it("sends a sentence's hint, notes, pronunciation and comma-joined alternative answers when given", async () => {
+    const fetch = stubResponse({ ids: [900] });
+    const sentence = { text: "Ich {{hatte}} Hunger.", translation: "I was hungry.", hint: "haben", notes: "Past tense", pronunciation: "ish hatte", alternativeAnswers: ["hatt", "hatte"] };
+    await updateCollectionSentence(pairing, { collection, id: 900, sentence });
+    expect(requestBody(fetch)).toEqual({
+      updates: [{ id: 900, text: "Ich {{hatte}} Hunger.", translation: "I was hungry.", hint: "haben", notes: "Past tense", pronunciation: "ish hatte", alternative_answers: "hatt,hatte" }],
+    });
   });
 
   it("throws the server's errors when an update doesn't save", async () => {
     stubResponse({ errors: "Validation failed" });
     await expect(
-      updateCollectionSentence(pairing, { collection, id: 900, text: "Ich {{hatte}} Hunger.", translation: "I was hungry." }),
+      updateCollectionSentence(pairing, { collection, id: 900, sentence: { text: "Ich {{hatte}} Hunger.", translation: "I was hungry." } }),
     ).rejects.toThrow("Validation failed");
   });
 });
