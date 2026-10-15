@@ -37,23 +37,35 @@ jobs:
           name: binaries
           path: bin/
 
-  check-linux-arm64:
+  # Every platform's old build updates itself to this release before anyone else gets it.
+  check-self-update:
     needs: build
-    runs-on: ubuntu-24.04-arm
+    strategy:
+      matrix:
+        runner: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, macos-15-intel]
+    runs-on: ${{ matrix.runner }}
     steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
       - uses: actions/download-artifact@v4
         with:
           name: binaries
           path: bin/
 
       # Artifacts lose the executable bit.
-      - name: Check the Linux arm64 executable runs
-        run: |
-          chmod +x bin/clozemaster-linux-arm64
-          test "v$(bin/clozemaster-linux-arm64 --version)" = "$GITHUB_REF_NAME"
+      - run: chmod +x bin/clozemaster-*
+
+      - run: sh scripts/check-self-update.sh "${GITHUB_REF_NAME#v}"
 
   publish:
-    needs: [build, check-linux-arm64]
+    needs: [build, check-self-update]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4

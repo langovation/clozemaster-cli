@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 import { configDirectory } from "./config.js";
 import { fetchNewerVersion } from "./updateCheck.js";
 
-const RELEASES_URL = "https://github.com/langovation/clozemaster-cli/releases/download";
+const RELEASES_URL = process.env.CLOZEMASTER_RELEASES_URL || "https://github.com/langovation/clozemaster-cli/releases/download";
 const RELEASE_TARGETS = ["darwin-arm64", "darwin-x64", "linux-arm64", "linux-x64"];
 const CHECK_INTERVAL_MS = 60 * 60 * 1000;
 const STALE_LOCK_MS = 15 * 60 * 1000;

@@ -145,6 +145,7 @@ Environment variables:
 - `CLOZEMASTER_URL`: server to play against, e.g. `http://localhost:3000` (default `https://www.clozemaster.com`)
 - `CLOZEMASTER_TOKEN`: use this API auth token instead of logging in
 - `CLOZEMASTER_NO_AUTO_UPDATE`: set to `1` to stop the executable updating itself
+- `CLOZEMASTER_RELEASES_URL`: where the executable downloads updates from (default the GitHub releases); the release workflow points it at a local server to test updating before publishing
 
 ### Release a new version
 
