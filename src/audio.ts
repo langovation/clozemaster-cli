@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -104,8 +105,10 @@ async function downloadToCache(sentence: Sentence): Promise<string | undefined> 
   return audioPath;
 }
 
+// Named by content so an updated sound replaces one cached by an older version.
 function soundEffectFile(soundEffect: SoundEffect): string {
-  const audioPath = path.join(cacheDirectory, `${soundEffect}.mp3`);
+  const contentHash = createHash("sha256").update(SOUND_EFFECT_FILES[soundEffect]).digest("hex").slice(0, 8);
+  const audioPath = path.join(cacheDirectory, `${soundEffect}-${contentHash}.mp3`);
   if (!fs.existsSync(audioPath)) {
     fs.mkdirSync(cacheDirectory, { recursive: true });
     fs.writeFileSync(audioPath, Buffer.from(SOUND_EFFECT_FILES[soundEffect], "base64"));
