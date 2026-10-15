@@ -8,7 +8,7 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,7 +29,40 @@ jobs:
 
       - run: npm run build:binary -- --all
 
+      - name: Check the Linux x64 executable runs
+        run: test "v$(bin/clozemaster-linux-x64 --version)" = "$GITHUB_REF_NAME"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binaries
+          path: bin/
+
+  check-linux-arm64:
+    needs: build
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: binaries
+          path: bin/
+
+      # Artifacts lose the executable bit.
+      - name: Check the Linux arm64 executable runs
+        run: |
+          chmod +x bin/clozemaster-linux-arm64
+          test "v$(bin/clozemaster-linux-arm64 --version)" = "$GITHUB_REF_NAME"
+
+  publish:
+    needs: [build, check-linux-arm64]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: binaries
+          path: bin/
+
       # A full release, not a draft or prerelease: install.sh and the update check read releases/latest.
+      # Artifacts lose the executable bit, but install.sh sets it after downloading.
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -40,6 +73,7 @@ jobs:
             bin/clozemaster-linux-x64 \
             bin/clozemaster-linux-arm64 \
             bin/SHA256SUMS \
+            --repo "$GITHUB_REPOSITORY" \
             --title "$GITHUB_REF_NAME" \
             --generate-notes \
             --latest
