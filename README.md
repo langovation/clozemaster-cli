@@ -48,7 +48,7 @@ It's a local MCP server that talks over stdio. Your AI app starts it in the back
 | --- | --- |
 | `list_language_pairings` | The languages you're learning, with the ids the other tools need |
 | `list_collections` | Your own collections in a language |
-| `create_collection` | Make a new, empty collection |
+| `create_collection` | Make a new, empty collection (needs Clozemaster Pro) |
 | `list_sentences` | Page through a collection's sentences |
 | `add_sentences` | Add sentences to a collection (needs Clozemaster Pro) |
 | `update_sentence` | Change a sentence's text and translation |

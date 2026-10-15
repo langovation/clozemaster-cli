@@ -242,6 +242,16 @@ describe("MCP server", () => {
     });
   });
 
+  it("refuses to create a collection for users without Pro, keeping their login", async () => {
+    vi.stubEnv("CLOZEMASTER_TOKEN", "");
+    saveLogin({ authToken: "1:saved", username: "learner" });
+    vi.mocked(api.isProSubscriber).mockResolvedValue(false);
+    const result = await callTool("create_collection", { languagePairingId: 7, name: "Food" });
+    expectToolError(result, "Creating a collection needs Clozemaster Pro. Upgrade at");
+    expect(api.createCollection).not.toHaveBeenCalled();
+    expect(getAuthToken()).toBe("1:saved");
+  });
+
   it("refuses to add sentences for users without Pro", async () => {
     vi.mocked(api.isProSubscriber).mockResolvedValue(false);
     const result = await callTool("add_sentences", { ...ids, sentences: [{ text: "Ich {{habe}} Hunger.", translation: "I am hungry." }] });
