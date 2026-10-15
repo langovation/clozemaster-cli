@@ -7,7 +7,7 @@ import { ErrorMessage } from "../src/components/ErrorMessage.js";
 import { ExplanationPanel } from "../src/components/ExplanationPanel.js";
 import { RoundProgress } from "../src/components/RoundProgress.js";
 import { Select } from "../src/components/Select.js";
-import { DOWN, ENTER, press, settle, showsInColor, stripAnsi, UP, waitForText } from "./helpers.js";
+import { DOWN, ENTER, eventually, press, showsInColor, stripAnsi, UP, waitForText } from "./helpers.js";
 
 const items = (count: number) => Array.from({ length: count }, (_, index) => ({ label: `Item ${index + 1}`, value: index + 1 }));
 
@@ -25,23 +25,26 @@ describe("Select", () => {
 
   it("picks the highlighted item with enter", async () => {
     const onSelect = vi.fn();
-    const { stdin } = render(<Select items={items(3)} onSelect={onSelect} />);
+    const { lastFrame, stdin } = render(<Select items={items(3)} onSelect={onSelect} />);
+    await waitForText(lastFrame, "Item 1");
     await press(stdin, DOWN, ENTER);
-    expect(onSelect).toHaveBeenCalledWith(2);
+    await eventually(() => expect(onSelect).toHaveBeenCalledWith(2));
   });
 
   it("moves with j and k", async () => {
     const onSelect = vi.fn();
-    const { stdin } = render(<Select items={items(3)} onSelect={onSelect} />);
+    const { lastFrame, stdin } = render(<Select items={items(3)} onSelect={onSelect} />);
+    await waitForText(lastFrame, "Item 1");
     await press(stdin, "j", "j", "k", ENTER);
-    expect(onSelect).toHaveBeenCalledWith(2);
+    await eventually(() => expect(onSelect).toHaveBeenCalledWith(2));
   });
 
   it("wraps around both ends", async () => {
     const onSelect = vi.fn();
-    const { stdin } = render(<Select items={items(3)} onSelect={onSelect} />);
+    const { lastFrame, stdin } = render(<Select items={items(3)} onSelect={onSelect} />);
+    await waitForText(lastFrame, "Item 1");
     await press(stdin, UP, ENTER, DOWN, ENTER);
-    expect(onSelect.mock.calls).toEqual([[3], [1]]);
+    await eventually(() => expect(onSelect.mock.calls).toEqual([[3], [1]]));
   });
 
   it("shows twelve items at a time with the position in a longer list", () => {
@@ -54,9 +57,10 @@ describe("Select", () => {
 
   it("scrolls to keep the highlighted item visible", async () => {
     const { lastFrame, stdin } = render(<Select items={items(15)} onSelect={vi.fn()} />);
+    await waitForText(lastFrame, "Item 1");
     await press(stdin, UP);
+    await waitForText(lastFrame, "❯ Item 15");
     const frame = stripAnsi(lastFrame()!);
-    expect(frame).toContain("❯ Item 15");
     expect(frame).not.toContain("Item 3\n");
     expect(frame).toContain("15/15");
   });
@@ -102,9 +106,10 @@ describe("ErrorMessage", () => {
 
   it("opens the upgrade page with u", async () => {
     const error = new api.ProRequiredError("Listening needs Pro.", "listening");
-    const { stdin } = render(<ErrorMessage error={error} />);
+    const { lastFrame, stdin } = render(<ErrorMessage error={error} />);
+    await waitForText(lastFrame, "u open upgrade page");
     await press(stdin, "u");
-    expect(open).toHaveBeenCalledWith(error.upgradeUrl);
+    await eventually(() => expect(open).toHaveBeenCalledWith(error.upgradeUrl));
   });
 });
 
@@ -122,8 +127,7 @@ describe("ExplanationPanel", () => {
   it("says it's explaining while the explanation is written", async () => {
     vi.spyOn(api, "getExplanation").mockReturnValue(new Promise(() => {}));
     const { lastFrame } = render(<ExplanationPanel sentence={sentence} />);
-    await settle();
-    expect(stripAnsi(lastFrame()!)).toContain("Explaining… this may take a few seconds");
+    await eventually(() => expect(stripAnsi(lastFrame()!)).toContain("Explaining… this may take a few seconds"));
   });
 
   it("shows why there's no explanation", async () => {
@@ -151,7 +155,9 @@ describe("ExplanationPanel", () => {
     expect(frame).not.toContain("Literally");
 
     await press(stdin, ...Array<string>(10).fill(DOWN));
-    expect(stripAnsi(lastFrame()!)).toContain("Grammar");
-    expect(stripAnsi(lastFrame()!)).toContain("Comí. - I ate.");
+    await eventually(() => {
+      expect(stripAnsi(lastFrame()!)).toContain("Grammar");
+      expect(stripAnsi(lastFrame()!)).toContain("Comí. - I ate.");
+    });
   });
 });

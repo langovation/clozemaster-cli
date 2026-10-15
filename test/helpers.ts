@@ -1,3 +1,4 @@
+import { vi } from "vitest";
 import { colors } from "../src/theme.js";
 
 export const ENTER = "\r";
@@ -9,7 +10,7 @@ export const ESCAPE = "\u001B";
 export const settle = () => new Promise((resolve) => setTimeout(resolve, 30));
 
 // Polls instead of guessing a delay, then settles once more so input handlers are attached before the next key press.
-export async function waitForText(lastFrame: () => string | undefined, text: string, timeout = 2000) {
+export async function waitForText(lastFrame: () => string | undefined, text: string, timeout = 5000) {
   const startedAt = Date.now();
   while (!stripAnsi(lastFrame() || "").includes(text)) {
     if (Date.now() - startedAt > timeout) throw new Error(`Timed out waiting for "${text}" in:\n${stripAnsi(lastFrame() || "")}`);
@@ -17,6 +18,9 @@ export async function waitForText(lastFrame: () => string | undefined, text: str
   }
   await settle();
 }
+
+// Retries an assertion until it passes, for checks that depend on a render or request that may not have finished yet.
+export const eventually = (assertion: () => unknown) => vi.waitFor(assertion, { timeout: 5000, interval: 20 });
 
 export async function press(stdin: { write: (input: string) => void }, ...keys: string[]) {
   for (const key of keys) {

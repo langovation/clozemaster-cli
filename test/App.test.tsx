@@ -7,7 +7,7 @@ import { App } from "../src/App.js";
 import { splitCloze } from "../src/cloze.js";
 import { configDirectory } from "../src/config.js";
 import { startFakeServer } from "./fakeServer.js";
-import { DOWN, ENTER, ESCAPE, press, settle, stripAnsi, UP, waitForText } from "./helpers.js";
+import { DOWN, ENTER, ESCAPE, eventually, press, stripAnsi, UP, waitForText } from "./helpers.js";
 
 const fixture = (name: string) => JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures", `${name}.json`), "utf8"));
 const pairing = fixture("language_pairings").languagePairings[0];
@@ -41,10 +41,14 @@ describe("App against recorded API responses", () => {
 
   async function answerEverySentenceCorrectly({ lastFrame, stdin }: Pick<ReturnType<typeof render>, "lastFrame" | "stdin">) {
     for (const sentence of collectionRound) {
+      await waitForText(lastFrame, sentence.translation);
       const cloze = splitCloze(sentence.text).cloze;
       const optionNumber = stripAnsi(lastFrame()!).match(new RegExp(`(\\d) ${cloze}(\\s|$)`))![1];
-      await press(stdin, optionNumber, ENTER);
+      await press(stdin, optionNumber);
+      await waitForText(lastFrame, "enter to continue");
+      await press(stdin, ENTER);
     }
+    await waitForText(lastFrame, "Round complete!");
   }
 
   it("lists only my dashboard collections, custom ones included, in the web's order", async () => {
@@ -60,8 +64,10 @@ describe("App against recorded API responses", () => {
 
   it("asks how to answer after picking a collection, flashcards included", async () => {
     const { lastFrame, stdin } = await openPairing();
-    await press(stdin, DOWN, DOWN, ENTER);
-    expect(lastFrame()).toContain("How do you want to answer?");
+    await press(stdin, DOWN, DOWN);
+    await waitForText(lastFrame, "❯ Core 1,000 Collection");
+    await press(stdin, ENTER);
+    await waitForText(lastFrame, "How do you want to answer?");
     expect(lastFrame()).toContain("Flashcards");
     expect(lastFrame()).toContain("Listening");
   });
@@ -81,51 +87,67 @@ describe("App against recorded API responses", () => {
 
   it("says when there is nothing to review and goes back on esc", async () => {
     const { lastFrame, stdin } = await openPairing();
-    await press(stdin, ENTER, ENTER);
+    await press(stdin, ENTER);
+    await waitForText(lastFrame, "How do you want to answer?");
+    await press(stdin, ENTER);
     await waitForText(lastFrame, "Nothing to play in Review right now");
     await press(stdin, ESCAPE);
-    expect(lastFrame()).toContain("What do you want to play?");
+    await waitForText(lastFrame, "What do you want to play?");
   });
 
   it("plays a full multiple choice round, saving each answer to the collection", async () => {
     const { lastFrame, stdin } = await openPairing();
-    await press(stdin, DOWN, DOWN, ENTER, ENTER);
-    await waitForText(lastFrame, collectionRound[0].translation);
+    await press(stdin, DOWN, DOWN);
+    await waitForText(lastFrame, "❯ Core 1,000 Collection");
+    await press(stdin, ENTER);
+    await waitForText(lastFrame, "How do you want to answer?");
+    await press(stdin, ENTER);
 
     await answerEverySentenceCorrectly({ lastFrame, stdin });
 
     expect(stripAnsi(lastFrame()!)).toMatch(new RegExp(`${collectionRound.length}\\s+0\\s+100%`));
-    expect(stripAnsi(lastFrame()!)).toContain("52/100 points today");
-    expect(server.answers()).toHaveLength(collectionRound.length);
+    await eventually(() => expect(stripAnsi(lastFrame()!)).toContain("52/100 points today"));
+    await eventually(() => expect(server.answers()).toHaveLength(collectionRound.length));
     expect(server.answers().every((answer) => answer.url.toString() === core.collectionClozeSentencesAnswerUrl)).toBe(true);
     expect(server.answers()[0].body).toMatchObject({ correct: true, id: collectionRound[0].id, mode: "multiple_choice" });
   });
 
   it("shows today's points on the menu after a round", async () => {
     const { lastFrame, stdin } = await openPairing();
-    await press(stdin, DOWN, DOWN, ENTER, ENTER);
-    await waitForText(lastFrame, collectionRound[0].translation);
+    await press(stdin, DOWN, DOWN);
+    await waitForText(lastFrame, "❯ Core 1,000 Collection");
+    await press(stdin, ENTER);
+    await waitForText(lastFrame, "How do you want to answer?");
+    await press(stdin, ENTER);
 
     await answerEverySentenceCorrectly({ lastFrame, stdin });
     await press(stdin, ESCAPE);
     await waitForText(lastFrame, "What do you want to play?");
 
-    expect(stripAnsi(lastFrame()!)).toContain("52 points today");
+    await eventually(() => expect(stripAnsi(lastFrame()!)).toContain("52 points today"));
   });
 
   it("plays text input, replaying a miss at the end of the round", async () => {
     const { lastFrame, stdin } = await openPairing();
-    await press(stdin, DOWN, DOWN, ENTER, DOWN, ENTER);
+    await press(stdin, DOWN, DOWN);
+    await waitForText(lastFrame, "❯ Core 1,000 Collection");
+    await press(stdin, ENTER);
+    await waitForText(lastFrame, "How do you want to answer?");
+    await press(stdin, DOWN);
+    await waitForText(lastFrame, "❯ Text input");
+    await press(stdin, ENTER);
     await waitForText(lastFrame, collectionRound[0].translation);
 
     await press(stdin, "nope", ENTER);
-    expect(stripAnsi(lastFrame()!)).toContain(`2/${collectionRound.length + 1}`);
-    expect(server.answers()[0].body).toMatchObject({ correct: false, id: collectionRound[0].id, mode: "text_input" });
+    await eventually(() => expect(stripAnsi(lastFrame()!)).toContain(`2/${collectionRound.length + 1}`));
+    await eventually(() => expect(server.answers()[0].body).toMatchObject({ correct: false, id: collectionRound[0].id, mode: "text_input" }));
   });
 
   it("browses the other collections and starts a new one", async () => {
     const { lastFrame, stdin } = await openPairing();
-    await press(stdin, UP, ENTER);
+    await press(stdin, UP);
+    await waitForText(lastFrame, "❯ Browse all collections…");
+    await press(stdin, ENTER);
     await waitForText(lastFrame, "All Español collections");
 
     const frame = stripAnsi(lastFrame()!);
@@ -133,32 +155,40 @@ describe("App against recorded API responses", () => {
     expect(frame).toContain("Beginner A1");
     expect(frame).not.toContain("My Words");
 
-    await press(stdin, ENTER, ENTER);
+    await press(stdin, ENTER);
+    await waitForText(lastFrame, "How do you want to answer?");
+    await press(stdin, ENTER);
     await waitForText(lastFrame, collectionRound[0].translation);
     await press(stdin, "1");
     const beginner = collections.find((collection: { name: string }) => collection.name === "Beginner A1");
-    expect(server.answers()[0].url.toString()).toBe(beginner.collectionClozeSentencesAnswerUrl);
+    await eventually(() => expect(server.answers()[0].url.toString()).toBe(beginner.collectionClozeSentencesAnswerUrl));
   });
 
   it("changes a setting and keeps it", async () => {
     const { lastFrame, stdin } = render(<App />);
-    await settle();
+    await waitForText(lastFrame, "What are you learning today?");
     await press(stdin, "s");
+    await waitForText(lastFrame, "Typing color hint");
     expect(stripAnsi(lastFrame()!)).toMatch(/Typing color hint\s+on/);
     await press(stdin, ENTER);
-    expect(stripAnsi(lastFrame()!)).toMatch(/Typing color hint\s+off/);
+    await eventually(() => expect(stripAnsi(lastFrame()!)).toMatch(/Typing color hint\s+off/));
     await press(stdin, ESCAPE);
-    expect(lastFrame()).toContain("What are you learning today?");
+    await waitForText(lastFrame, "What are you learning today?");
 
     const reopened = render(<App />);
-    await settle();
+    await waitForText(reopened.lastFrame, "What are you learning today?");
     await press(reopened.stdin, "s");
+    await waitForText(reopened.lastFrame, "Typing color hint");
     expect(stripAnsi(reopened.lastFrame()!)).toMatch(/Typing color hint\s+off/);
   });
 
   it("goes back from browsing to my collections on esc", async () => {
     const { lastFrame, stdin } = await openPairing();
-    await press(stdin, UP, ENTER, ESCAPE);
-    expect(lastFrame()).toContain("What do you want to play?");
+    await press(stdin, UP);
+    await waitForText(lastFrame, "❯ Browse all collections…");
+    await press(stdin, ENTER);
+    await waitForText(lastFrame, "All Español collections");
+    await press(stdin, ESCAPE);
+    await waitForText(lastFrame, "What do you want to play?");
   });
 });

@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../src/App.js";
 import packageJson from "../package.json" with { type: "json" };
 import { startFakeServer } from "./fakeServer.js";
-import { settle, stripAnsi, waitForText } from "./helpers.js";
+import { stripAnsi, waitForText } from "./helpers.js";
 
 const UPDATE_COMMAND = "curl -fsSL https://www.clozemaster.com/install-cli.sh | sh";
 
@@ -28,7 +28,7 @@ describe("update notice", () => {
   it("stays quiet when this is already the latest version", async () => {
     startFakeServer({ latestCliVersion: packageJson.version });
     const app = render(<App />);
-    await settle();
+    await waitForText(app.lastFrame, "What are you learning today?");
 
     expect(stripAnsi(app.lastFrame() ?? "")).not.toContain(UPDATE_COMMAND);
   });

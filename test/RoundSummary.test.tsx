@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { Sentence } from "../src/api.js";
 import { RoundSummary, type RoundResult } from "../src/screens/RoundSummary.js";
 import { SettingsProvider } from "../src/SettingsContext.js";
-import { DOWN, press, settle, stripAnsi, UP } from "./helpers.js";
+import { DOWN, eventually, press, stripAnsi, UP, waitForText } from "./helpers.js";
 
 vi.mock("../src/audio.js", () => ({ playSoundEffect: vi.fn(async () => true) }));
 
@@ -22,7 +22,7 @@ function renderSummary(sentenceCount: number) {
 describe("RoundSummary", () => {
   it("shows only as many sentences as fit the terminal, from the top", async () => {
     const { lastFrame } = renderSummary(30);
-    await settle();
+    await waitForText(lastFrame, "Sentence 1.");
     const frame = stripAnsi(lastFrame()!);
     expect(frame).toContain("Sentence 1.");
     expect(frame).toContain("Sentence 2.");
@@ -33,16 +33,16 @@ describe("RoundSummary", () => {
 
   it("scrolls the sentences with the arrow keys, stopping at the ends", async () => {
     const { lastFrame, stdin } = renderSummary(4);
-    await settle();
+    await waitForText(lastFrame, "↑↓ scroll 1–2/4");
     await press(stdin, DOWN, DOWN, DOWN);
-    expect(stripAnsi(lastFrame()!)).toContain("↑↓ scroll 3–4/4");
+    await eventually(() => expect(stripAnsi(lastFrame()!)).toContain("↑↓ scroll 3–4/4"));
     await press(stdin, UP, UP, UP);
-    expect(stripAnsi(lastFrame()!)).toContain("↑↓ scroll 1–2/4");
+    await eventually(() => expect(stripAnsi(lastFrame()!)).toContain("↑↓ scroll 1–2/4"));
   });
 
   it("shows every sentence without a scroll hint when they all fit", async () => {
     const { lastFrame } = renderSummary(2);
-    await settle();
+    await waitForText(lastFrame, "Sentence 2.");
     expect(stripAnsi(lastFrame()!)).toContain("Sentence 2.");
     expect(stripAnsi(lastFrame()!)).not.toContain("scroll");
   });

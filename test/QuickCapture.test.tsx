@@ -7,7 +7,7 @@ import * as api from "../src/api.js";
 import { App } from "../src/App.js";
 import { configDirectory } from "../src/config.js";
 import { startFakeServer } from "./fakeServer.js";
-import { DOWN, ENTER, ESCAPE, press, RIGHT_ARROW, stripAnsi, unwrapped, waitForText } from "./helpers.js";
+import { DOWN, ENTER, ESCAPE, eventually, press, RIGHT_ARROW, stripAnsi, unwrapped, waitForText } from "./helpers.js";
 
 const TAB = "\t";
 
@@ -54,21 +54,30 @@ describe("Quick Capture", () => {
     const { lastFrame, stdin } = await openQuickCapture();
     await press(stdin, "gato", ENTER, "perro", ENTER);
     await waitForText(lastFrame, "gato (translated)");
-    await press(stdin, TAB, "d");
-    await waitForText(lastFrame, "gato (translated)");
-    expect(lastFrame()).not.toContain("perro");
-    expect(server.quickCaptureEntries().map((entry) => entry.text)).toEqual(["gato"]);
+    await waitForText(lastFrame, "perro (translated)");
+    await press(stdin, TAB);
+    await waitForText(lastFrame, "i import all");
+    await press(stdin, "d");
+    await eventually(() => expect(lastFrame()).not.toContain("perro"));
+    expect(lastFrame()).toContain("gato (translated)");
+    await eventually(() => expect(server.quickCaptureEntries().map((entry) => entry.text)).toEqual(["gato"]));
   });
 
   it("deletes a word added after emptying the list", async () => {
     const { lastFrame, stdin } = await openQuickCapture();
     await press(stdin, "gato", ENTER);
     await waitForText(lastFrame, "gato (translated)");
-    await press(stdin, TAB, "d", "perro", ENTER);
-    await waitForText(lastFrame, "perro (translated)");
-    await press(stdin, TAB, "d");
+    await press(stdin, TAB);
+    await waitForText(lastFrame, "i import all");
+    await press(stdin, "d");
     await waitForText(lastFrame, "Nothing captured yet.");
-    expect(server.quickCaptureEntries()).toEqual([]);
+    await press(stdin, "perro", ENTER);
+    await waitForText(lastFrame, "perro (translated)");
+    await press(stdin, TAB);
+    await waitForText(lastFrame, "i import all");
+    await press(stdin, "d");
+    await waitForText(lastFrame, "Nothing captured yet.");
+    await eventually(() => expect(server.quickCaptureEntries()).toEqual([]));
   });
 
   it("shows the example sentence only for the highlighted word", async () => {
@@ -84,10 +93,17 @@ describe("Quick Capture", () => {
     const { lastFrame, stdin } = await openQuickCapture();
     await press(stdin, "gato", ENTER);
     await waitForText(lastFrame, "gato (translated)");
-    await press(stdin, TAB, ENTER);
+    await press(stdin, TAB);
+    await waitForText(lastFrame, "i import all");
+    await press(stdin, ENTER);
     await waitForText(lastFrame, "move the hidden word");
-    await press(stdin, RIGHT_ARROW, "t", " Mine.", ENTER, ENTER);
+    await press(stdin, RIGHT_ARROW, "t");
+    await waitForText(lastFrame, "enter done · esc stop editing");
+    await press(stdin, " Mine.", ENTER);
+    await waitForText(lastFrame, "move the hidden word");
+    await press(stdin, ENTER);
     await waitForText(lastFrame, "I see a gato here. Mine.");
+    await waitForText(lastFrame, "i import all");
 
     expect(server.quickCaptureEntries()[0]).toMatchObject({ sentence: "Veo un gato {{aquí}}.", sentenceTranslation: "I see a gato here. Mine." });
   });
@@ -96,9 +112,13 @@ describe("Quick Capture", () => {
     const { lastFrame, stdin } = await openQuickCapture();
     await press(stdin, "gato", ENTER, "perro", ENTER);
     await waitForText(lastFrame, "perro (translated)");
-    await press(stdin, TAB, "i");
+    await press(stdin, TAB);
+    await waitForText(lastFrame, "i import all");
+    await press(stdin, "i");
     await waitForText(lastFrame, "Import all 2 words into a Español collection");
-    await press(stdin, DOWN, ENTER);
+    await press(stdin, DOWN);
+    await waitForText(lastFrame, "❯ Travel");
+    await press(stdin, ENTER);
     await waitForText(lastFrame, "Importing 2 into Travel");
 
     expect(server.imports()).toEqual([{ collection_id: 6, pin_to_dashboard: true, quick_capture_entry_ids: ["2", "1"] }]);
@@ -109,9 +129,15 @@ describe("Quick Capture", () => {
     const { lastFrame, stdin } = await openQuickCapture();
     await press(stdin, "gato", ENTER);
     await waitForText(lastFrame, "gato (translated)");
-    await press(stdin, TAB, "i");
+    await press(stdin, TAB);
+    await waitForText(lastFrame, "i import all");
+    await press(stdin, "i");
     await waitForText(lastFrame, "Import all 1 word");
-    await press(stdin, DOWN, DOWN, ENTER, "Animals", ENTER);
+    await press(stdin, DOWN, DOWN);
+    await waitForText(lastFrame, "❯ + New collection");
+    await press(stdin, ENTER);
+    await waitForText(lastFrame, "enter to create and import");
+    await press(stdin, "Animals", ENTER);
     await waitForText(lastFrame, "Importing 1 into Animals");
 
     expect(server.imports()).toEqual([{ collection_id: 99, pin_to_dashboard: true, quick_capture_entry_ids: ["1"] }]);
@@ -122,7 +148,9 @@ describe("Quick Capture", () => {
     const { lastFrame, stdin } = await openQuickCapture();
     await press(stdin, "gato", ENTER);
     await waitForText(lastFrame, "gato (translated)");
-    await press(stdin, TAB, "i");
+    await press(stdin, TAB);
+    await waitForText(lastFrame, "i import all");
+    await press(stdin, "i");
     await waitForText(lastFrame, "needs Clozemaster Pro");
     expect(lastFrame()).toContain("/pro?placement=cli_quick_capture_import");
     await press(stdin, ESCAPE);
@@ -142,7 +170,7 @@ describe("Quick Capture", () => {
     await press(stdin, "gato", ENTER);
     await waitForText(lastFrame, "gato (translated)");
     await press(stdin, TAB);
-    expect(unwrapped(lastFrame()!)).toContain("↑↓ to move · enter edit sentence · i import all · d delete · tab to type · esc back");
+    await eventually(() => expect(unwrapped(lastFrame()!)).toContain("↑↓ to move · enter edit sentence · i import all · d delete · tab to type · esc back"));
   });
 
   it("doesn't pick from an empty list", async () => {
@@ -162,12 +190,13 @@ describe("Quick Capture", () => {
     const { lastFrame, stdin } = await openQuickCapture();
     await press(stdin, "gato", ENTER, "perro", ENTER);
     await waitForText(lastFrame, "gato (translated)");
+    await waitForText(lastFrame, "perro (translated)");
     await press(stdin, TAB);
-    expect(stripAnsi(lastFrame()!)).toContain("❯ perro");
+    await waitForText(lastFrame, "❯ perro");
     await press(stdin, DOWN);
-    expect(stripAnsi(lastFrame()!)).toContain("❯ gato");
+    await waitForText(lastFrame, "❯ gato");
     await press(stdin, DOWN);
-    expect(stripAnsi(lastFrame()!)).toContain("❯ perro");
+    await waitForText(lastFrame, "❯ perro");
   });
 
   it("keeps checking until a word is translated", async () => {
@@ -199,9 +228,15 @@ describe("Quick Capture", () => {
     const { lastFrame, stdin } = await openQuickCapture();
     await press(stdin, "gato", ENTER);
     await waitForText(lastFrame, "gato (translated)");
-    await press(stdin, TAB, ENTER, "e");
+    await press(stdin, TAB);
+    await waitForText(lastFrame, "i import all");
+    await press(stdin, ENTER);
+    await waitForText(lastFrame, "move the hidden word");
+    await press(stdin, "e");
     await waitForText(lastFrame, "enter done · esc stop editing");
-    await press(stdin, " Sí.", ENTER, ENTER);
+    await press(stdin, " Sí.", ENTER);
+    await waitForText(lastFrame, "move the hidden word");
+    await press(stdin, ENTER);
     await waitForText(lastFrame, "i import all");
     expect(server.quickCaptureEntries()[0]).toMatchObject({ sentence: "Veo un {{gato}} aquí. Sí." });
   });
@@ -210,7 +245,9 @@ describe("Quick Capture", () => {
     vi.spyOn(api, "getQuickCaptureEntries").mockResolvedValue([{ id: "1", status: "processed", text: "gato", translation: "cat", url: "https://example.com/qce/1" }]);
     const app = await goToQuickCapture();
     await waitForText(app.lastFrame, "cat");
-    await press(app.stdin, TAB, ENTER);
+    await press(app.stdin, TAB);
+    await waitForText(app.lastFrame, "i import all");
+    await press(app.stdin, ENTER);
     await waitForText(app.lastFrame, "No example sentence yet.");
   });
 
@@ -218,7 +255,11 @@ describe("Quick Capture", () => {
     const { lastFrame, stdin } = await openQuickCapture();
     await press(stdin, "gato", ENTER);
     await waitForText(lastFrame, "gato (translated)");
-    await press(stdin, TAB, ENTER, RIGHT_ARROW, ESCAPE);
+    await press(stdin, TAB);
+    await waitForText(lastFrame, "i import all");
+    await press(stdin, ENTER);
+    await waitForText(lastFrame, "move the hidden word");
+    await press(stdin, RIGHT_ARROW, ESCAPE);
     await waitForText(lastFrame, "i import all");
     expect(server.quickCaptureEntries()[0]).toMatchObject({ sentence: "Veo un {{gato}} aquí." });
   });
@@ -228,7 +269,11 @@ describe("Quick Capture", () => {
     const { lastFrame, stdin } = await openQuickCapture();
     await press(stdin, "gato", ENTER);
     await waitForText(lastFrame, "gato (translated)");
-    await press(stdin, TAB, ENTER, ENTER);
+    await press(stdin, TAB);
+    await waitForText(lastFrame, "i import all");
+    await press(stdin, ENTER);
+    await waitForText(lastFrame, "move the hidden word");
+    await press(stdin, ENTER);
     await waitForText(lastFrame, "offline");
   });
 
@@ -236,10 +281,14 @@ describe("Quick Capture", () => {
     const { lastFrame, stdin } = await openQuickCapture();
     await press(stdin, "gato", ENTER);
     await waitForText(lastFrame, "gato (translated)");
-    await press(stdin, TAB, "i");
+    await press(stdin, TAB);
+    await waitForText(lastFrame, "i import all");
+    await press(stdin, "i");
     await waitForText(lastFrame, "Import all 1 word");
-    await press(stdin, DOWN, DOWN, ENTER);
-    expect(stripAnsi(lastFrame()!)).toContain("enter to create and import · esc back");
+    await press(stdin, DOWN, DOWN);
+    await waitForText(lastFrame, "❯ + New collection");
+    await press(stdin, ENTER);
+    await waitForText(lastFrame, "enter to create and import · esc back");
     await press(stdin, "  ", ENTER);
     expect(server.imports()).toEqual([]);
   });
@@ -248,9 +297,15 @@ describe("Quick Capture", () => {
     const { lastFrame, stdin } = await openQuickCapture();
     await press(stdin, "gato", ENTER);
     await waitForText(lastFrame, "gato (translated)");
-    await press(stdin, TAB, "i");
+    await press(stdin, TAB);
+    await waitForText(lastFrame, "i import all");
+    await press(stdin, "i");
     await waitForText(lastFrame, "Import all 1 word");
-    await press(stdin, DOWN, DOWN, ENTER, ESCAPE);
+    await press(stdin, DOWN, DOWN);
+    await waitForText(lastFrame, "❯ + New collection");
+    await press(stdin, ENTER);
+    await waitForText(lastFrame, "enter to create and import");
+    await press(stdin, ESCAPE);
     await waitForText(lastFrame, "Pick one of your collections or make a new one.");
   });
 
@@ -259,7 +314,9 @@ describe("Quick Capture", () => {
     const { lastFrame, stdin } = await openQuickCapture();
     await press(stdin, "gato", ENTER);
     await waitForText(lastFrame, "gato (translated)");
-    await press(stdin, TAB, "i");
+    await press(stdin, TAB);
+    await waitForText(lastFrame, "i import all");
+    await press(stdin, "i");
     await waitForText(lastFrame, "Import all 1 word");
     await press(stdin, ENTER);
     await waitForText(lastFrame, "offline");
