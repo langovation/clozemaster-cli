@@ -20,6 +20,7 @@ for (const target of targets) {
   const result = await Bun.build({
     entrypoints: ["src/cli.tsx"],
     compile: { target: bunTarget(target) as Bun.Build.Target, outfile: `bin/clozemaster-${target}` },
+    define: { "process.env.CLOZEMASTER_COMPILED": '"1"' },
     minify: true,
     plugins: [stubDevtools],
   });

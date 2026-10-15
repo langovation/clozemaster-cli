@@ -23,6 +23,7 @@ import {
 } from "./api.js";
 import { clearLogin, hasLogin, isUsingSavedLogin } from "./config.js";
 import { startOrResumeBrowserLogin } from "./mcpLogin.js";
+import { updateInBackground } from "./selfUpdate.js";
 import { currentVersion } from "./updateCheck.js";
 
 const INSTRUCTIONS = `Manage the sentences in the user's own Clozemaster collections. Clozemaster teaches a language with cloze sentences: a sentence in the language being learned with one word hidden, which the learner fills in.
@@ -312,4 +313,13 @@ export async function startMcpServer() {
   identifyClientAs("mcp");
   await createMcpServer().connect(new StdioServerTransport());
   console.error("Clozemaster MCP server running on stdio");
+  updateWhileRunning();
+}
+
+// Aborted when the client disconnects, or the download would keep the process alive.
+async function updateWhileRunning() {
+  const controller = new AbortController();
+  process.stdin.once("close", () => controller.abort());
+  const installedVersion = await updateInBackground(controller.signal);
+  if (installedVersion) console.error(`Updated to Clozemaster CLI ${installedVersion}. It takes effect when the MCP server next starts.`);
 }

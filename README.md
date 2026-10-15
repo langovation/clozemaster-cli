@@ -144,6 +144,7 @@ Environment variables:
 
 - `CLOZEMASTER_URL`: server to play against, e.g. `http://localhost:3000` (default `https://www.clozemaster.com`)
 - `CLOZEMASTER_TOKEN`: use this API auth token instead of logging in
+- `CLOZEMASTER_NO_AUTO_UPDATE`: set to `1` to stop the executable updating itself
 
 ### Release a new version
 
@@ -156,7 +157,7 @@ From a clean, pushed `main`, the script:
 1. Bumps `version` in `package.json`, commits it, tags `v0.2.0` and pushes both.
 2. Waits for the release workflow (`.github/workflows/release.yml`), which runs the tests, builds an executable for each platform and publishes them with `SHA256SUMS` as the latest GitHub release. `install.sh` always downloads from the latest release.
 3. Checks the release has all five files.
-4. Opens a web repo PR setting `lib/cli/cli-version.txt` to the new version. Every CLI reads that file on launch and, if it's older, tells the user to rerun the install line, so merge it last. The script looks for the web repo next to this one; set `CLOZEMASTER_WEB_REPO` if it's elsewhere.
+4. Opens a web repo PR setting `lib/cli/cli-version.txt` to the new version. Installed CLIs and MCP servers check that file at most once an hour and, if it's newer, download that release's executable in the background, check it against `SHA256SUMS`, check it runs, and swap it in for the next launch, so merge it last. The script looks for the web repo next to this one; set `CLOZEMASTER_WEB_REPO` if it's elsewhere.
 
 The copy of `install.sh` served at clozemaster.com lives in the web repo at `lib/cli/install-cli.sh`.
 

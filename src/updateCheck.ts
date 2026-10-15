@@ -20,9 +20,9 @@ function versionParts(version: string): number[] {
   return version.split(".").map(Number);
 }
 
-export async function fetchNewerVersion(): Promise<string | undefined> {
+export async function fetchNewerVersion(signal?: AbortSignal): Promise<string | undefined> {
   try {
-    const response = await fetch(`${baseUrl}/cli-version.txt`);
+    const response = await fetch(`${baseUrl}/cli-version.txt`, { signal });
     if (!response.ok) return undefined;
     const latestVersion = (await response.text()).trim();
     return isNewerVersion(latestVersion, currentVersion) ? latestVersion : undefined;
