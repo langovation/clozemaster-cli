@@ -302,10 +302,10 @@ function collectionSentencesPath(languagePairing: LanguagePairing, collection: O
 
 export async function getCollectionSentences(
   languagePairing: LanguagePairing,
-  { collection, page, perPage }: { collection: OwnCollection; page: number; perPage: number },
+  { collection, page, perPage, query }: { collection: OwnCollection; page: number; perPage: number; query?: string },
 ): Promise<CollectionSentencesPage> {
   return request<CollectionSentencesPage>(collectionSentencesPath(languagePairing, collection), {
-    query: { page: String(page), per_page: String(perPage) },
+    query: { page: String(page), per_page: String(perPage), ...(query ? { query } : {}) },
   });
 }
 

@@ -173,12 +173,13 @@ function summarizeSentence({ id, alternativeAnswers, hint, notes, pronunciation,
   return { id, text, translation, hint, notes, alternativeAnswers, pronunciation };
 }
 
-async function listSentences(input: CollectionIds & { page: number; perPage: number }) {
+async function listSentences(input: CollectionIds & { page: number; perPage: number; query?: string }) {
   const { pairing, collection } = await findPairingAndCollection(input);
   const { collectionClozeSentences, page, perPage, total } = await getCollectionSentences(pairing, {
     collection,
     page: input.page,
     perPage: input.perPage,
+    query: input.query,
   });
   return {
     sentences: collectionClozeSentences.map(summarizeSentence),
@@ -265,12 +266,13 @@ export function createMcpServer(): McpServer {
     {
       annotations: READ_ONLY,
       description:
-        "List the sentences in one of the user's own collections, one page at a time. Returns { sentences: [{ id, text, translation, hint, notes, alternativeAnswers, pronunciation }], page, perPage, total, nextPage }. text marks the hidden word with {{double curly braces}}. nextPage is null on the last page.",
+        "List the sentences in one of the user's own collections, one page at a time, optionally only those matching query. To find a particular sentence, pass query rather than paging through the collection. Returns { sentences: [{ id, text, translation, hint, notes, alternativeAnswers, pronunciation }], page, perPage, total, nextPage }. text marks the hidden word with {{double curly braces}}. nextPage is null on the last page.",
       inputSchema: {
         languagePairingId,
         collectionId,
         page: z.number().int().positive().default(1).describe("Page number, starting at 1."),
         perPage: z.number().int().min(1).max(MAX_PER_PAGE).default(20).describe(`Sentences per page, 1 to ${MAX_PER_PAGE}.`),
+        query: z.string().min(1).optional().describe("Only sentences whose text contains this word or phrase as whole words, ignoring case, e.g. `fragor`. Add * at either end to match part of a word, e.g. `fragor*`."),
       },
     },
     (input) => runTool(() => listSentences(input)),

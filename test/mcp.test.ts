@@ -210,6 +210,12 @@ describe("MCP server", () => {
     expect(api.getCollectionSentences).toHaveBeenCalledWith(pairing, { collection, page: 1, perPage: 1 });
   });
 
+  it("lists only the sentences matching a query", async () => {
+    vi.mocked(api.getCollectionSentences).mockResolvedValue({ collectionClozeSentences: [sentence], page: 1, perPage: 20, total: 1 });
+    await callTool("list_sentences", { ...ids, query: "Hunger" });
+    expect(api.getCollectionSentences).toHaveBeenCalledWith(pairing, { collection, page: 1, perPage: 20, query: "Hunger" });
+  });
+
   it("returns no next page on the last page", async () => {
     vi.mocked(api.getCollectionSentences).mockResolvedValue({ collectionClozeSentences: [sentence], page: 2, perPage: 20, total: 21 });
     const result = await callTool("list_sentences", { ...ids, page: 2 });

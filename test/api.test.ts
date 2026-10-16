@@ -198,6 +198,12 @@ describe("api requests", () => {
       expect(Object.fromEntries(url.searchParams)).toEqual({ page: "2", per_page: "20" });
     });
 
+    it("gets a page of sentences matching a query", async () => {
+      const fetch = stubFetch(200, { collectionClozeSentences: [], page: 1, perPage: 20, total: 0 });
+      await api.getCollectionSentences(pairing, { collection, page: 1, perPage: 20, query: "fragor" });
+      expect(Object.fromEntries(lastRequest(fetch).url.searchParams)).toEqual({ page: "1", per_page: "20", query: "fragor" });
+    });
+
     it("gets one sentence", async () => {
       const fetch = stubFetch(200, { collectionClozeSentence: { id: 900 } });
       expect(await api.getCollectionSentence(pairing, { collection, id: 900 })).toEqual({ id: 900 });
