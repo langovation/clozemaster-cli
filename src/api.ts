@@ -372,6 +372,11 @@ export async function importQuickCaptureEntries(
   });
 }
 
+// A carriage return sends the terminal cursor back to the line start, so the card's border draws over the text.
+function withoutCarriageReturns(sentence: Sentence): Sentence {
+  return { ...sentence, text: sentence.text.replace(/\r/g, ""), translation: sentence.translation.replace(/\r/g, "") };
+}
+
 // The web saves the mode and skill asked for as the user's play options, so only send ones it knows.
 export async function getRound({
   mode,
@@ -385,9 +390,10 @@ export async function getRound({
   scope?: string;
 }): Promise<Round> {
   try {
-    return await request<Round>(playDataUrl, {
+    const round = await request<Round>(playDataUrl, {
       query: { count: String(roundLength), ...apiModeAndSkill(mode), ...(scope ? { scope } : {}) },
     });
+    return { ...round, collectionClozeSentences: round.collectionClozeSentences.map(withoutCarriageReturns) };
   } catch (error) {
     if (mode === "listening" && isApiError(error, 400)) {
       throw new ProRequiredError("Your free listening trial is used up. Listening needs Clozemaster Pro.", "listening");

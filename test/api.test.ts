@@ -283,6 +283,12 @@ describe("api requests", () => {
       expect(url.searchParams.get("scope")).toBe("ready_for_review");
     });
 
+    it("drops carriage returns from sentences, which would draw over the card", async () => {
+      stubFetch(200, { collectionClozeSentences: [{ ...sentence, text: "¿Tiene {{tratamiento}}?\r", translation: "Do you have treatment?\r" }], wordBank: [] });
+      const round = await api.getRound({ mode: "text_input", playDataUrl: "https://example.com/play", roundLength: 10 });
+      expect(round.collectionClozeSentences[0]).toMatchObject({ text: "¿Tiene {{tratamiento}}?", translation: "Do you have treatment?" });
+    });
+
     it("says listening needs Pro once the free trial is used up", async () => {
       stubFetch(400);
       const round = api.getRound({ mode: "listening", playDataUrl: "https://example.com/play", roundLength: 10 });
