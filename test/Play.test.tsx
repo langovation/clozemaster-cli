@@ -1060,6 +1060,28 @@ describe("Play", () => {
       );
     });
 
+    it("replays an edited sentence without its old audio", async () => {
+      vi.spyOn(api, "updateSentence").mockResolvedValue();
+      vi.mocked(api.getRound).mockResolvedValue({ collection: { isEditable: true }, collectionClozeSentences: [{ ...sentence, ttsAudioUrl: "https://example.com/old.mp3" }], wordBank: [] });
+      const { lastFrame, stdin } = renderPlay("flashcard");
+      await waitForRoundToLoad(lastFrame);
+      await press(stdin, " ");
+      await waitForText(lastFrame, "Known");
+      await press(stdin, "c");
+      await waitForText(lastFrame, "e edit sentence");
+      await press(stdin, "e");
+      await waitForText(lastFrame, "enter done");
+      await press(stdin, " Sí.");
+      await waitForText(lastFrame, "Sí.");
+      await press(stdin, ENTER);
+      await waitForText(lastFrame, "enter save");
+      await press(stdin, ENTER);
+      await waitForText(lastFrame, "p replay");
+      await press(stdin, "p");
+
+      expect(playSentenceAudio).toHaveBeenLastCalledWith(expect.objectContaining({ text: "Tengo {{mucha}} hambre. Sí.", ttsAudioUrl: undefined }));
+    });
+
     it("shows a failure to save the edit", async () => {
       vi.spyOn(api, "updateSentence").mockRejectedValue(new Error("offline"));
       const { lastFrame, stdin } = renderPlay("multiple_choice");

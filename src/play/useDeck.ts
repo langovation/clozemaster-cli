@@ -22,7 +22,7 @@ export function useDeck(sentences: Sentence[]) {
 
   // A missed sentence is in the deck twice, so both copies take the edit.
   function applyEdit(edited: Sentence) {
-    setCards((current) => current.map((card) => (card.id === edited.id ? { ...card, text: edited.text, translation: edited.translation } : card)));
+    setCards((current) => current.map((card) => (card.id === edited.id ? withEdit(card, edited) : card)));
   }
 
   function removeUpcoming(deleted: Sentence) {
@@ -46,4 +46,10 @@ export function useDeck(sentences: Sentence[]) {
 
 function tomorrow(): string {
   return new Date(Date.now() + ONE_DAY_MS).toISOString();
+}
+
+// The round's audio url is for the old text, so drop it and let the sentence's tts url fetch the current audio.
+function withEdit(card: Sentence, edited: Sentence): Sentence {
+  const ttsAudioUrl = edited.text === card.text ? card.ttsAudioUrl : undefined;
+  return { ...card, text: edited.text, translation: edited.translation, ttsAudioUrl };
 }

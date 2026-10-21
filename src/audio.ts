@@ -34,7 +34,7 @@ export const canPlayAtHalfSpeed = HALF_SPEED_PLAYERS.some((player) => isOnPath(p
 
 // Per user rather than the shared temp dir, so nobody else on the machine can plant files in it.
 const cacheDirectory = path.join(process.env.XDG_CACHE_HOME || path.join(os.homedir(), ".cache"), "clozemaster", "audio");
-const downloads = new Map<number, Promise<string | undefined>>();
+const downloads = new Map<string, Promise<string | undefined>>();
 let currentPlayback: ChildProcess | undefined;
 let playbackGeneration = 0;
 
@@ -83,18 +83,24 @@ async function playUnlessStopped(play: (isStillWanted: () => boolean) => Promise
 
 // Shared so playing a sentence that's already downloading waits for that download instead of starting another.
 function downloadAudio(sentence: Sentence): Promise<string | undefined> {
-  if (!downloads.has(sentence.id)) {
-    const download = downloadToCache(sentence).catch(() => undefined);
-    downloads.set(sentence.id, download);
-    download.then((audioPath) => {
-      if (!audioPath) downloads.delete(sentence.id);
+  const audioPath = sentenceAudioFile(sentence);
+  if (!downloads.has(audioPath)) {
+    const download = downloadToCache(sentence, audioPath).catch(() => undefined);
+    downloads.set(audioPath, download);
+    download.then((downloadedPath) => {
+      if (!downloadedPath) downloads.delete(audioPath);
     });
   }
-  return downloads.get(sentence.id)!;
+  return downloads.get(audioPath)!;
 }
 
-async function downloadToCache(sentence: Sentence): Promise<string | undefined> {
-  const audioPath = path.join(cacheDirectory, `${sentence.id}.mp3`);
+// Named by the text too, so an edited sentence doesn't play the audio cached for its old text.
+function sentenceAudioFile(sentence: Sentence): string {
+  const textHash = createHash("sha256").update(sentence.text).digest("hex").slice(0, 8);
+  return path.join(cacheDirectory, `${sentence.id}-${textHash}.mp3`);
+}
+
+async function downloadToCache(sentence: Sentence, audioPath: string): Promise<string | undefined> {
   if (fs.existsSync(audioPath)) return audioPath;
   const audioUrl = await getSentenceAudioUrl(sentence);
   if (!audioUrl) return undefined;

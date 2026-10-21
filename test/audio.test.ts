@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { EventEmitter } from "node:events";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -35,7 +36,8 @@ vi.mock("node:child_process", () => ({
 
 vi.mock("../src/api.js", () => ({ getSentenceAudioUrl: vi.fn(async () => "https://example.com/7.mp3") }));
 
-const sentence = { id: 7 } as Sentence;
+const sentence = { id: 7, text: "Tengo {{mucha}} hambre." } as Sentence;
+const CACHED_AUDIO = `/cache/clozemaster/audio/7-${createHash("sha256").update(sentence.text).digest("hex").slice(0, 8)}.mp3`;
 const BIN = "/test-bin";
 
 async function loadAudio({ installed, platform }: { installed: string[]; platform: NodeJS.Platform }) {
@@ -74,7 +76,7 @@ describe("audio", () => {
     const played = audio.playSentenceAudio(sentence);
     const { args, command, playback } = await lastSpawn();
     expect(command).toBe("afplay");
-    expect(args).toEqual(["/cache/clozemaster/audio/7.mp3"]);
+    expect(args).toEqual([CACHED_AUDIO]);
     playback.finish();
     expect(await played).toBe(true);
   });
@@ -82,7 +84,7 @@ describe("audio", () => {
   it("plays at half speed with afplay's rate option on macOS", async () => {
     const audio = await loadAudio({ installed: [], platform: "darwin" });
     audio.playSentenceAudioAtHalfSpeed(sentence);
-    expect(await lastSpawn()).toMatchObject({ args: ["-r", "0.5", "-q", "1", "/cache/clozemaster/audio/7.mp3"], command: "afplay" });
+    expect(await lastSpawn()).toMatchObject({ args: ["-r", "0.5", "-q", "1", CACHED_AUDIO], command: "afplay" });
   });
 
   it("downloads a sentence's audio into the cache", async () => {
@@ -90,15 +92,24 @@ describe("audio", () => {
     audio.playSentenceAudio(sentence);
     await lastSpawn();
     expect(fetch).toHaveBeenCalledWith("https://example.com/7.mp3");
-    expect(files.has("/cache/clozemaster/audio/7.mp3")).toBe(true);
+    expect(files.has(CACHED_AUDIO)).toBe(true);
   });
 
   it("plays cached audio without downloading it again", async () => {
-    files.add("/cache/clozemaster/audio/7.mp3");
+    files.add(CACHED_AUDIO);
     const audio = await loadAudio({ installed: [], platform: "darwin" });
     audio.playSentenceAudio(sentence);
     await lastSpawn();
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("downloads a sentence's audio again once its text has changed", async () => {
+    const audio = await loadAudio({ installed: [], platform: "darwin" });
+    audio.playSentenceAudio(sentence);
+    await lastSpawn();
+    audio.playSentenceAudio({ ...sentence, text: "Tengo {{mucha}} hambre. Sí." });
+    await lastSpawn();
+    expect(fetch).toHaveBeenCalledTimes(2);
   });
 
   it("downloads once when preloading and then playing", async () => {
@@ -112,16 +123,16 @@ describe("audio", () => {
   it("plays with mpg123 first on Linux", async () => {
     const audio = await loadAudio({ installed: [], platform: "linux" });
     audio.playSentenceAudio(sentence);
-    expect(await lastSpawn()).toMatchObject({ args: ["-q", "/cache/clozemaster/audio/7.mp3"], command: "mpg123" });
+    expect(await lastSpawn()).toMatchObject({ args: ["-q", CACHED_AUDIO], command: "mpg123" });
   });
 
   it("falls back to ffplay and then mpv when a player is missing", async () => {
     const audio = await loadAudio({ installed: [], platform: "linux" });
     const played = audio.playSentenceAudio(sentence);
     (await lastSpawn()).playback.fail();
-    expect(spawned.at(-1)).toMatchObject({ args: ["-nodisp", "-autoexit", "-loglevel", "quiet", "/cache/clozemaster/audio/7.mp3"], command: "ffplay" });
+    expect(spawned.at(-1)).toMatchObject({ args: ["-nodisp", "-autoexit", "-loglevel", "quiet", CACHED_AUDIO], command: "ffplay" });
     spawned.at(-1)!.playback.fail();
-    expect(spawned.at(-1)).toMatchObject({ args: ["--no-video", "--really-quiet", "/cache/clozemaster/audio/7.mp3"], command: "mpv" });
+    expect(spawned.at(-1)).toMatchObject({ args: ["--no-video", "--really-quiet", CACHED_AUDIO], command: "mpv" });
     spawned.at(-1)!.playback.fail();
     expect(await played).toBe(true);
   });
@@ -130,9 +141,9 @@ describe("audio", () => {
     const audio = await loadAudio({ installed: [], platform: "linux" });
     audio.playSentenceAudioAtHalfSpeed(sentence);
     const ffplay = await lastSpawn();
-    expect(ffplay).toMatchObject({ args: ["-nodisp", "-autoexit", "-loglevel", "quiet", "-af", "atempo=0.5", "/cache/clozemaster/audio/7.mp3"], command: "ffplay" });
+    expect(ffplay).toMatchObject({ args: ["-nodisp", "-autoexit", "-loglevel", "quiet", "-af", "atempo=0.5", CACHED_AUDIO], command: "ffplay" });
     ffplay.playback.fail();
-    expect(spawned.at(-1)).toMatchObject({ args: ["--no-video", "--really-quiet", "--speed=0.5", "/cache/clozemaster/audio/7.mp3"], command: "mpv" });
+    expect(spawned.at(-1)).toMatchObject({ args: ["--no-video", "--really-quiet", "--speed=0.5", CACHED_AUDIO], command: "mpv" });
   });
 
   it("can play at half speed on Linux with ffplay or mpv installed", async () => {
