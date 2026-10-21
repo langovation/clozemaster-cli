@@ -143,13 +143,17 @@ export function PlayRound({ choice, isTextEditable, mode, onMenu, onPlayAgain, o
   }
 
   function goToNextSentence() {
+    showUnansweredCard();
+    deck.advance();
+  }
+
+  function showUnansweredCard() {
     stopAudio();
     setAnswered(undefined);
     setIsRevealed(false);
     setHasUsedHint(false);
     listenToNextSentence();
     setIsExplaining(false);
-    deck.advance();
     markShown();
   }
 
@@ -164,6 +168,7 @@ export function PlayRound({ choice, isTextEditable, mode, onMenu, onPlayAgain, o
 
   function removeDeletedSentence(deleted: Sentence) {
     deck.removeUpcoming(deleted);
+    showUnansweredCard();
     setIsEditing(false);
   }
 

@@ -603,6 +603,26 @@ describe("Play", () => {
       await waitForText(lastFrame, "I have little time.");
     });
 
+    it("shows the next card unanswered after deleting an answered one", async () => {
+      vi.spyOn(api, "deleteSentence").mockResolvedValue();
+      const ownSentence = { ...sentence, url: "https://example.com/ccs/7" };
+      const nextSentence = { ...sentence, id: 8, text: "Tengo {{poco}} tiempo.", translation: "I have little time." };
+      vi.mocked(api.getRound).mockResolvedValue({ collection: { isEditable: true }, collectionClozeSentences: [ownSentence, nextSentence], wordBank: [] });
+      const { lastFrame, stdin } = renderPlay("flashcard");
+      await waitForRoundToLoad(lastFrame);
+      await press(stdin, " ");
+      await waitForText(lastFrame, "Known");
+      await press(stdin, "c");
+      await waitForText(lastFrame, "d delete");
+      await press(stdin, "d");
+      await waitForText(lastFrame, "Delete this sentence");
+      await press(stdin, "y");
+
+      await waitForText(lastFrame, "I have little time.");
+      expect(stripAnsi(lastFrame()!)).toContain("space to reveal");
+      expect(stripAnsi(lastFrame()!)).not.toContain("Tengo poco tiempo.");
+    });
+
     it("keeps the sentence when the delete isn't confirmed", async () => {
       vi.spyOn(api, "deleteSentence").mockResolvedValue();
       vi.mocked(api.getRound).mockResolvedValue({ collection: { isEditable: true }, collectionClozeSentences: [{ ...sentence, url: "https://example.com/ccs/7" }], wordBank: [] });
