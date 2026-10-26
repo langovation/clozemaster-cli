@@ -17,8 +17,10 @@ vi.mock("../src/api.js", async (importOriginal) => ({
   getLanguagePairings: vi.fn(),
   getOwnCollections: vi.fn(),
   isProSubscriber: vi.fn(),
+  pinCollection: vi.fn(),
   pollCliLogin: vi.fn(),
   startCliLogin: vi.fn(),
+  unpinCollection: vi.fn(),
   updateCollectionSentence: vi.fn(),
 }));
 
@@ -98,6 +100,8 @@ describe("MCP server", () => {
       "list_language_pairings",
       "list_collections",
       "create_collection",
+      "pin_collection",
+      "unpin_collection",
       "list_sentences",
       "add_sentences",
       "update_sentence",
@@ -110,6 +114,8 @@ describe("MCP server", () => {
     ["list_collections", { readOnlyHint: true, openWorldHint: false }],
     ["list_sentences", { readOnlyHint: true, openWorldHint: false }],
     ["create_collection", { destructiveHint: false, idempotentHint: false, openWorldHint: false }],
+    ["pin_collection", { destructiveHint: false, idempotentHint: true, openWorldHint: false }],
+    ["unpin_collection", { destructiveHint: false, idempotentHint: true, openWorldHint: false }],
     ["add_sentences", { destructiveHint: false, idempotentHint: false, openWorldHint: false }],
     ["update_sentence", { destructiveHint: false, idempotentHint: true, openWorldHint: false }],
     ["delete_sentence", { destructiveHint: true, idempotentHint: true, openWorldHint: false }],
@@ -201,6 +207,29 @@ describe("MCP server", () => {
     const result = await callTool("create_collection", { languagePairingId: 7, name: "Food" });
     expect(resultJson(result)).toEqual(collection);
     expect(api.createCollection).toHaveBeenCalledWith(pairing, "Food");
+  });
+
+  it("pins a new collection to the dashboard", async () => {
+    vi.mocked(api.createCollection).mockResolvedValue(collection);
+    await callTool("create_collection", { languagePairingId: 7, name: "Food" });
+    expect(api.pinCollection).toHaveBeenCalledWith(pairing, collection);
+  });
+
+  it("pins a collection", async () => {
+    const result = await callTool("pin_collection", ids);
+    expect(resultJson(result)).toEqual({ pinned: 42 });
+    expect(api.pinCollection).toHaveBeenCalledWith(pairing, collection);
+  });
+
+  it("unpins a collection", async () => {
+    const result = await callTool("unpin_collection", ids);
+    expect(resultJson(result)).toEqual({ unpinned: 42 });
+    expect(api.unpinCollection).toHaveBeenCalledWith(pairing, collection);
+  });
+
+  it("doesn't pin a collection the user doesn't own", async () => {
+    expectToolError(await callTool("pin_collection", { ...ids, collectionId: 5 }), "No collection of the user's own with id 5");
+    expect(api.pinCollection).not.toHaveBeenCalled();
   });
 
   it("lists a page of sentences with the next page number", async () => {

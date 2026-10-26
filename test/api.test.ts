@@ -182,6 +182,20 @@ describe("api requests", () => {
       expect(lastRequest(fetch)).toMatchObject({ body: { collection: { name: "Food" } }, method: "POST" });
     });
 
+    it("pins a collection to the dashboard", async () => {
+      const fetch = stubFetch(200, { collection });
+      await api.pinCollection(pairing, collection);
+      expect(lastRequest(fetch)).toMatchObject({ body: { user_collection: { dashboard_collection: true } }, method: "PUT" });
+      expect(lastRequest(fetch).url.pathname).toBe("/api/v1/lp/7/c/42/uc");
+    });
+
+    it("unpins a collection from the dashboard", async () => {
+      const fetch = stubFetch(200, { collection });
+      await api.unpinCollection(pairing, collection);
+      expect(lastRequest(fetch)).toMatchObject({ body: { user_collection: { dashboard_collection: false } }, method: "PUT" });
+      expect(lastRequest(fetch).url.pathname).toBe("/api/v1/lp/7/c/42/uc");
+    });
+
     it("reports whether the user has Pro", async () => {
       stubFetch(200, { user: { isPro: null } });
       expect(await api.isProSubscriber()).toBe(false);

@@ -270,6 +270,21 @@ export async function createCollection(languagePairing: LanguagePairing, name: s
   return collection;
 }
 
+export async function pinCollection(languagePairing: LanguagePairing, collection: OwnCollection): Promise<void> {
+  await saveDashboardCollection(languagePairing, collection, true);
+}
+
+export async function unpinCollection(languagePairing: LanguagePairing, collection: OwnCollection): Promise<void> {
+  await saveDashboardCollection(languagePairing, collection, false);
+}
+
+async function saveDashboardCollection(languagePairing: LanguagePairing, collection: OwnCollection, isPinned: boolean): Promise<void> {
+  await request(`/lp/${languagePairing.id}/c/${collection.id}/uc`, {
+    body: { user_collection: { dashboard_collection: isPinned } },
+    method: "PUT",
+  });
+}
+
 export type CollectionSentence = {
   id: number;
   alternativeAnswers: string[];

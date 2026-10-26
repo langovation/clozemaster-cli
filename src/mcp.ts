@@ -13,7 +13,9 @@ import {
   identifyClientAs,
   isApiError,
   isProSubscriber,
+  pinCollection,
   ProRequiredError,
+  unpinCollection,
   updateCollectionSentence,
   type CliLoginStart,
   type CollectionSentence,
@@ -30,7 +32,7 @@ const INSTRUCTIONS = `Manage the sentences in the user's own Clozemaster collect
 
 Typical workflow:
 1. list_language_pairings: pick the pairing for the language the user means. Note its id, its targetLanguage (the language being learned, which sentences are written in) and its baseLanguage (the learner's own language, which translations are written in).
-2. list_collections to pick one of the user's own collections, or create_collection to make a new one.
+2. list_collections to pick one of the user's own collections, or create_collection to make a new one (it is pinned to the user's dashboard). pin_collection and unpin_collection show or hide a collection on the dashboard.
 3. add_sentences to write sentences into it. list_sentences, update_sentence and delete_sentence review and fix them.
 
 Only the user's own collections can be read or changed here. Creating collections and adding sentences need Clozemaster Pro.`;
@@ -192,7 +194,22 @@ async function listSentences(input: CollectionIds & { page: number; perPage: num
 
 async function createCollectionForPro(languagePairingId: number, name: string) {
   await ensureProSubscriber(new ProRequiredError("Creating a collection needs Clozemaster Pro.", "mcp_create_collection"));
-  return summarizeCollection(await createCollection(await findLanguagePairing(languagePairingId), name));
+  const pairing = await findLanguagePairing(languagePairingId);
+  const collection = await createCollection(pairing, name);
+  await pinCollection(pairing, collection);
+  return summarizeCollection(collection);
+}
+
+async function pinOwnCollection(ids: CollectionIds) {
+  const { pairing, collection } = await findPairingAndCollection(ids);
+  await pinCollection(pairing, collection);
+  return { pinned: collection.id };
+}
+
+async function unpinOwnCollection(ids: CollectionIds) {
+  const { pairing, collection } = await findPairingAndCollection(ids);
+  await unpinCollection(pairing, collection);
+  return { unpinned: collection.id };
 }
 
 async function addSentences(input: CollectionIds & { sentences: NewCollectionSentence[] }) {
@@ -255,10 +272,30 @@ export function createMcpServer(): McpServer {
     "create_collection",
     {
       annotations: CREATES,
-      description: "Create a new, empty collection owned by the user in a language pairing (needs Clozemaster Pro). Returns { id, name }; pass that id as collectionId to add_sentences.",
+      description: "Create a new, empty collection owned by the user in a language pairing (needs Clozemaster Pro) and pin it to their dashboard. Returns { id, name }; pass that id as collectionId to add_sentences.",
       inputSchema: { languagePairingId, name: nonEmptyText().describe("Name of the new collection, e.g. `Kitchen words`.") },
     },
     ({ languagePairingId, name }) => runTool(() => createCollectionForPro(languagePairingId, name)),
+  );
+
+  server.registerTool(
+    "pin_collection",
+    {
+      annotations: REPLACES,
+      description: "Pin one of the user's own collections to their Clozemaster dashboard. Returns { pinned: collectionId }.",
+      inputSchema: { languagePairingId, collectionId },
+    },
+    (input) => runTool(() => pinOwnCollection(input)),
+  );
+
+  server.registerTool(
+    "unpin_collection",
+    {
+      annotations: REPLACES,
+      description: "Unpin one of the user's own collections from their Clozemaster dashboard, keeping the collection and its sentences. Returns { unpinned: collectionId }.",
+      inputSchema: { languagePairingId, collectionId },
+    },
+    (input) => runTool(() => unpinOwnCollection(input)),
   );
 
   server.registerTool(
