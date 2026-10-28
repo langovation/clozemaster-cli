@@ -493,7 +493,7 @@ describe("Play", () => {
     await waitForText(lastFrame, "+8 points");
   });
 
-  it("chimes for a right answer, then plays the sentence, then the round's done sound", async () => {
+  it("chimes for a right answer while playing the sentence, then the round's done sound", async () => {
     const app = renderPlay("text_input");
     const { lastFrame, stdin } = app;
     await waitForRoundToLoad(lastFrame);

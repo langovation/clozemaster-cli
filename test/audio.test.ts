@@ -191,7 +191,7 @@ describe("audio", () => {
     expect(args).toEqual([expect.stringMatching(/^\/cache\/clozemaster\/audio\/correct-[0-9a-f]{8}\.mp3$/)]);
     expect(files.has(args[0])).toBe(true);
     playback.finish();
-    expect(await played).toBe(true);
+    await played;
   });
 
   it("ignores a sound effect cached by an older version", async () => {
@@ -201,10 +201,12 @@ describe("audio", () => {
     expect(spawned.at(-1)!.args).not.toEqual(["/cache/clozemaster/audio/correct.mp3"]);
   });
 
-  it("resolves false when a sound effect is cut short", async () => {
+  it("keeps playing a sound effect when a sentence starts", async () => {
     const audio = await loadAudio({ installed: [], platform: "darwin" });
-    const played = audio.playSoundEffect("success");
-    audio.stopAudio();
-    expect(await played).toBe(false);
+    audio.playSoundEffect("correct");
+    const { playback } = spawned.at(-1)!;
+    audio.playSentenceAudio(sentence);
+    await lastSpawn();
+    expect(playback.kill).not.toHaveBeenCalled();
   });
 });

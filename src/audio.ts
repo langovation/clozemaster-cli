@@ -53,9 +53,9 @@ export function playSentenceAudioAtHalfSpeed(sentence: Sentence): Promise<boolea
   return playSentence(sentence, HALF_SPEED_PLAYERS);
 }
 
-// Resolves true once the sound has finished, false if something else stopped it.
-export function playSoundEffect(soundEffect: SoundEffect): Promise<boolean> {
-  return playUnlessStopped(() => playFile(soundEffectFile(soundEffect)));
+// Plays alongside a sentence rather than stopping it, so a chime and the sentence start together.
+export function playSoundEffect(soundEffect: SoundEffect): Promise<void> {
+  return playAlongside(soundEffectFile(soundEffect));
 }
 
 export function stopAudio() {
@@ -133,5 +133,15 @@ function playFile(audioPath: string, players = PLAYERS): Promise<void> {
     });
     playback.on("exit", () => resolve());
     currentPlayback = playback;
+  });
+}
+
+function playAlongside(audioPath: string, players = PLAYERS): Promise<void> {
+  const [player, ...fallbacks] = players;
+  if (!player) return Promise.resolve();
+  return new Promise((resolve) => {
+    const playback = spawn(player.command, [...player.args, audioPath], { stdio: "ignore" });
+    playback.on("error", () => resolve(playAlongside(audioPath, fallbacks)));
+    playback.on("exit", () => resolve());
   });
 }

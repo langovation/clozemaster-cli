@@ -24,8 +24,8 @@ export function useRoundAudio({ answered, isRevealed, mode, sentence, upcoming }
 
   useEffect(() => stopAudio, []);
 
-  async function playAfterAnswering({ isCorrect }: AnsweredSentence) {
-    const isChimeDone = isCorrect && settings.soundEffects ? await playSoundEffect("correct") : true;
-    if (isChimeDone && mode !== "listening" && settings.audio) playSentenceAudio(sentence);
+  function playAfterAnswering({ isCorrect }: AnsweredSentence) {
+    if (isCorrect && settings.soundEffects) playSoundEffect("correct");
+    if (mode !== "listening" && settings.audio) playSentenceAudio(sentence);
   }
 }
