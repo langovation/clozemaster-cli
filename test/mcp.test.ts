@@ -9,58 +9,57 @@ import { createMcpServer } from "../src/mcp.js";
 
 vi.mock("../src/api.js", async (importOriginal) => ({
   ...(await importOriginal<typeof api>()),
-  createCollection: vi.fn(),
-  createCollectionSentence: vi.fn(),
-  deleteCollectionSentence: vi.fn(),
-  getCollectionSentence: vi.fn(),
-  getCollectionSentences: vi.fn(),
-  getLanguagePairings: vi.fn(),
-  getOwnCollections: vi.fn(),
-  isProSubscriber: vi.fn(),
-  pinCollection: vi.fn(),
   pollCliLogin: vi.fn(),
   startCliLogin: vi.fn(),
-  unpinCollection: vi.fn(),
-  updateCollectionSentence: vi.fn(),
 }));
 
-const pairing: api.LanguagePairing = {
-  id: 7,
-  baseLanguageName: "English",
-  currentLevelPoints: 450,
-  currentStreakDays: 3,
-  level: 2,
-  nextLevelPoints: 600,
-  numPointsToday: 10,
-  score: 500,
-  targetLanguageName: "German",
-};
+type JsonRpcRequest = { id?: number; method: string; params?: { name?: string; arguments?: Record<string, unknown> } };
+type HostedCall = { authToken: string | null; client: string | null; message: JsonRpcRequest; url: string };
 
-const collection = { id: 42, name: "Food" };
+const hostedTools = [
+  { name: "list_language_pairings", description: "List the languages the user is learning.", inputSchema: { type: "object", properties: {} } },
+  { name: "add_sentences", description: "Add sentences.", inputSchema: { type: "object", properties: { collectionId: { type: "integer" } } } },
+];
+const hostedInstructions = "Manage the sentences in the user's own Clozemaster collections.";
+const loginPrompt =
+  "Not logged in to Clozemaster yet. A browser window opened to log in, showing the code ABCD-1234 (if it didn't open, visit https://example.com/cli). Ask the user to log in and approve it there, then call this tool again.";
 
-const sentence: api.CollectionSentence = {
-  id: 900,
-  alternativeAnswers: [],
-  hint: null,
-  notes: null,
-  pronunciation: null,
-  text: "Ich {{habe}} Hunger.",
-  translation: "I am hungry.",
-};
+let hostedCalls: HostedCall[];
+let toolCallStatus: number;
 
-const ids = { languagePairingId: 7, collectionId: 42 };
+function stubHostedServer() {
+  hostedCalls = [];
+  toolCallStatus = 200;
+  vi.stubGlobal("fetch", vi.fn(async (input: string | URL, init: RequestInit = {}) => {
+    const headers = new Headers(init.headers);
+    if (init.method !== "POST") return new Response(null, { status: 405 });
+    const message = JSON.parse(String(init.body)) as JsonRpcRequest;
+    hostedCalls.push({ authToken: headers.get("Auth-Token"), client: headers.get("Clozemaster-Client"), message, url: String(input) });
+    if (message.id === undefined) return new Response(null, { status: 202 });
+    if (message.method === "tools/call" && toolCallStatus !== 200) return new Response("{}", { status: toolCallStatus });
+    return Response.json({ jsonrpc: "2.0", id: message.id, result: hostedResult(message) });
+  }));
+}
+
+function hostedResult({ method, params }: JsonRpcRequest) {
+  if (method === "initialize") {
+    return { protocolVersion: "2025-06-18", capabilities: { tools: { listChanged: false } }, serverInfo: { name: "clozemaster", version: "1.0.0" }, instructions: hostedInstructions };
+  }
+  if (method === "tools/list") return { tools: hostedTools };
+  if (params?.name === "add_sentences") return { content: [{ type: "text", text: "Adding sentences to a collection needs Clozemaster Pro." }], isError: true };
+  return { content: [{ type: "text", text: JSON.stringify({ called: params?.name, with: params?.arguments }) }] };
+}
 
 async function connectClient() {
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  await createMcpServer().connect(serverTransport);
+  await (await createMcpServer()).connect(serverTransport);
   const client = new Client({ name: "test", version: "1.0.0" });
   await client.connect(clientTransport);
   return client;
 }
 
 async function callTool(name: string, args: Record<string, unknown> = {}) {
-  const client = await connectClient();
-  return (await client.callTool({ name, arguments: args })) as CallToolResult;
+  return (await (await connectClient()).callTool({ name, arguments: args })) as CallToolResult;
 }
 
 function resultText(result: CallToolResult): string {
@@ -68,23 +67,16 @@ function resultText(result: CallToolResult): string {
   return content.type === "text" ? content.text : "";
 }
 
-function resultJson(result: CallToolResult): unknown {
-  expect(result.isError).toBeUndefined();
-  return JSON.parse(resultText(result));
-}
-
-function expectToolError(result: CallToolResult, message: string) {
-  expect(result.isError).toBe(true);
-  expect(resultText(result)).toContain(message);
+function toolCalls() {
+  return hostedCalls.filter((call) => call.message.method === "tools/call");
 }
 
 describe("MCP server", () => {
   beforeEach(() => {
     vi.stubEnv("CLOZEMASTER_TOKEN", "1:test");
-    vi.mocked(api.getLanguagePairings).mockResolvedValue([pairing]);
-    vi.mocked(api.getOwnCollections).mockResolvedValue([collection]);
-    vi.mocked(api.getCollectionSentence).mockResolvedValue(sentence);
-    vi.mocked(api.isProSubscriber).mockResolvedValue(true);
+    stubHostedServer();
+    vi.mocked(api.startCliLogin).mockResolvedValue({ deviceCode: "device", expiresIn: 600, pollInterval: 1, userCode: "ABCD-1234", verificationUrl: "https://example.com/cli" });
+    vi.mocked(api.pollCliLogin).mockResolvedValue(null);
   });
 
   afterEach(() => {
@@ -93,77 +85,76 @@ describe("MCP server", () => {
     vi.clearAllMocks();
   });
 
-  it("lists every tool", async () => {
-    const client = await connectClient();
-    const { tools } = await client.listTools();
-    expect(tools.map((tool) => tool.name)).toEqual([
-      "list_language_pairings",
-      "list_collections",
-      "create_collection",
-      "pin_collection",
-      "unpin_collection",
-      "list_sentences",
-      "add_sentences",
-      "update_sentence",
-      "delete_sentence",
-    ]);
+  it("passes calls through to the hosted Clozemaster MCP server", async () => {
+    await callTool("list_language_pairings");
+    expect(new Set(hostedCalls.map((call) => call.url))).toEqual(new Set(["https://www.clozemaster.com/mcp"]));
   });
 
-  it.each([
-    ["list_language_pairings", { readOnlyHint: true, openWorldHint: false }],
-    ["list_collections", { readOnlyHint: true, openWorldHint: false }],
-    ["list_sentences", { readOnlyHint: true, openWorldHint: false }],
-    ["create_collection", { destructiveHint: false, idempotentHint: false, openWorldHint: false }],
-    ["pin_collection", { destructiveHint: false, idempotentHint: true, openWorldHint: false }],
-    ["unpin_collection", { destructiveHint: false, idempotentHint: true, openWorldHint: false }],
-    ["add_sentences", { destructiveHint: false, idempotentHint: false, openWorldHint: false }],
-    ["update_sentence", { destructiveHint: false, idempotentHint: true, openWorldHint: false }],
-    ["delete_sentence", { destructiveHint: true, idempotentHint: true, openWorldHint: false }],
-  ])("annotates %s", async (name, annotations) => {
-    const client = await connectClient();
-    const { tools } = await client.listTools();
-    expect(tools.find((tool) => tool.name === name)?.annotations).toEqual(annotations);
+  it("lists the hosted server's tools", async () => {
+    const { tools } = await (await connectClient()).listTools();
+    expect(tools).toEqual(hostedTools);
   });
 
-  it("describes the workflow in the server instructions", async () => {
-    const client = await connectClient();
-    expect(client.getInstructions()).toContain("list_language_pairings");
+  it("gives the hosted server's instructions", async () => {
+    expect((await connectClient()).getInstructions()).toBe(hostedInstructions);
+  });
+
+  it("lists the tools before the user logs in", async () => {
+    vi.stubEnv("CLOZEMASTER_TOKEN", "");
+    const { tools } = await (await connectClient()).listTools();
+    expect(tools.map((tool) => tool.name)).toEqual(["list_language_pairings", "add_sentences"]);
+    expect(hostedCalls.every((call) => call.authToken === null)).toBe(true);
+  });
+
+  it("sends the CLI login token and says the call comes from the MCP server", async () => {
+    api.identifyClientAs("mcp");
+    await callTool("list_language_pairings");
+    expect(toolCalls()[0]).toMatchObject({ authToken: "1:test", client: expect.stringMatching(/^mcp\//) });
+  });
+
+  it("passes a tool's arguments and result through unchanged", async () => {
+    const result = await callTool("list_language_pairings", { page: 2 });
+    expect(toolCalls()[0].message.params).toEqual({ name: "list_language_pairings", arguments: { page: 2 } });
+    expect(resultText(result)).toBe(JSON.stringify({ called: "list_language_pairings", with: { page: 2 } }));
+    expect(result.isError).toBeUndefined();
+  });
+
+  it("passes a tool error through unchanged", async () => {
+    const result = await callTool("add_sentences", { collectionId: 1 });
+    expect(result.isError).toBe(true);
+    expect(resultText(result)).toBe("Adding sentences to a collection needs Clozemaster Pro.");
   });
 
   it("opens the browser login when there is no saved login, then uses the approved login", async () => {
     vi.useFakeTimers();
     vi.stubEnv("CLOZEMASTER_TOKEN", "");
-    vi.mocked(api.startCliLogin).mockResolvedValue({ deviceCode: "device", expiresIn: 600, pollInterval: 1, userCode: "ABCD-1234", verificationUrl: "https://example.com/cli" });
     vi.mocked(api.pollCliLogin).mockResolvedValue({ authToken: "1:approved", username: "learner" });
 
-    const result = await callTool("list_language_pairings");
+    const client = await connectClient();
+    const result = (await client.callTool({ name: "list_language_pairings", arguments: {} })) as CallToolResult;
     expect(result.isError).toBe(true);
-    expect(resultText(result)).toBe(
-      "Not logged in to Clozemaster yet. A browser window opened to log in, showing the code ABCD-1234 (if it didn't open, visit https://example.com/cli). Ask the user to log in and approve it there, then call this tool again.",
-    );
+    expect(resultText(result)).toBe(loginPrompt);
     expect(open).toHaveBeenCalledWith("https://example.com/cli");
+    expect(toolCalls()).toEqual([]);
 
     await vi.advanceTimersByTimeAsync(1000);
     vi.useRealTimers();
-    expect(resultJson(await callTool("list_language_pairings"))).toEqual([{ id: 7, targetLanguage: "German", baseLanguage: "English" }]);
+    await client.callTool({ name: "list_language_pairings", arguments: {} });
+    expect(toolCalls()[0].authToken).toBe("1:approved");
   });
 
-  describe("when the server rejects the login", () => {
-    const loginPrompt = "Not logged in to Clozemaster yet. A browser window opened to log in, showing the code ABCD-1234";
-
+  describe("when the hosted server rejects the login", () => {
     beforeEach(() => {
-      vi.mocked(api.getLanguagePairings).mockRejectedValue(new api.ApiError("You're not logged in. Run `clozemaster login`.", 401));
-      vi.mocked(api.startCliLogin).mockResolvedValue({ deviceCode: "device", expiresIn: 600, pollInterval: 1, userCode: "ABCD-1234", verificationUrl: "https://example.com/cli" });
-      vi.mocked(api.pollCliLogin).mockResolvedValue(null);
+      toolCallStatus = 401;
     });
 
     it("forgets a rejected saved login and asks to log in again in the browser", async () => {
       vi.stubEnv("CLOZEMASTER_TOKEN", "");
       saveLogin({ authToken: "1:expired", username: "learner" });
       const result = await callTool("list_language_pairings");
-      expectToolError(result, loginPrompt);
+      expect(result.isError).toBe(true);
+      expect(resultText(result)).toBe(loginPrompt);
       expect(getAuthToken()).toBeUndefined();
-      expect(open).toHaveBeenCalledWith("https://example.com/cli");
     });
 
     it("keeps reporting a rejected token from the environment", async () => {
@@ -175,182 +166,17 @@ describe("MCP server", () => {
     });
   });
 
-  it("lists language pairings with their ids and languages", async () => {
-    const result = await callTool("list_language_pairings");
-    expect(resultJson(result)).toEqual([{ id: 7, targetLanguage: "German", baseLanguage: "English" }]);
-  });
-
-  it("lists the user's own collections for a pairing", async () => {
-    const result = await callTool("list_collections", { languagePairingId: 7 });
-    expect(resultJson(result)).toEqual([collection]);
-    expect(api.getOwnCollections).toHaveBeenCalledWith(pairing);
-  });
-
-  it("lists only each collection's id and name, not the rest of what the server sends", async () => {
-    vi.mocked(api.getOwnCollections).mockResolvedValue([{ ...collection, playDataUrl: "https://example.com/play", numSentences: 3 } as api.OwnCollection]);
-    const result = await callTool("list_collections", { languagePairingId: 7 });
-    expect(resultJson(result)).toEqual([collection]);
-  });
-
-  it("returns only the new collection's id and name", async () => {
-    vi.mocked(api.createCollection).mockResolvedValue({ ...collection, playDataUrl: "https://example.com/play" } as api.OwnCollection);
-    const result = await callTool("create_collection", { languagePairingId: 7, name: "Food" });
-    expect(resultJson(result)).toEqual(collection);
-  });
-
-  it("reports an unknown language pairing id as a tool error", async () => {
-    expectToolError(await callTool("list_collections", { languagePairingId: 99 }), "No language pairing with id 99");
-  });
-
-  it("creates a collection", async () => {
-    vi.mocked(api.createCollection).mockResolvedValue(collection);
-    const result = await callTool("create_collection", { languagePairingId: 7, name: "Food" });
-    expect(resultJson(result)).toEqual(collection);
-    expect(api.createCollection).toHaveBeenCalledWith(pairing, "Food");
-  });
-
-  it("pins a new collection to the dashboard", async () => {
-    vi.mocked(api.createCollection).mockResolvedValue(collection);
-    await callTool("create_collection", { languagePairingId: 7, name: "Food" });
-    expect(api.pinCollection).toHaveBeenCalledWith(pairing, collection);
-  });
-
-  it("pins a collection", async () => {
-    const result = await callTool("pin_collection", ids);
-    expect(resultJson(result)).toEqual({ pinned: 42 });
-    expect(api.pinCollection).toHaveBeenCalledWith(pairing, collection);
-  });
-
-  it("unpins a collection", async () => {
-    const result = await callTool("unpin_collection", ids);
-    expect(resultJson(result)).toEqual({ unpinned: 42 });
-    expect(api.unpinCollection).toHaveBeenCalledWith(pairing, collection);
-  });
-
-  it("doesn't pin a collection the user doesn't own", async () => {
-    expectToolError(await callTool("pin_collection", { ...ids, collectionId: 5 }), "No collection of the user's own with id 5");
-    expect(api.pinCollection).not.toHaveBeenCalled();
-  });
-
-  it("lists a page of sentences with the next page number", async () => {
-    vi.mocked(api.getCollectionSentences).mockResolvedValue({ collectionClozeSentences: [sentence], page: 1, perPage: 1, total: 3 });
-    const result = await callTool("list_sentences", { ...ids, perPage: 1 });
-    expect(resultJson(result)).toEqual({ sentences: [sentence], page: 1, perPage: 1, total: 3, nextPage: 2 });
-    expect(api.getCollectionSentences).toHaveBeenCalledWith(pairing, { collection, page: 1, perPage: 1 });
-  });
-
-  it("lists only the sentences matching a query", async () => {
-    vi.mocked(api.getCollectionSentences).mockResolvedValue({ collectionClozeSentences: [sentence], page: 1, perPage: 20, total: 1 });
-    await callTool("list_sentences", { ...ids, query: "Hunger" });
-    expect(api.getCollectionSentences).toHaveBeenCalledWith(pairing, { collection, page: 1, perPage: 20, query: "Hunger" });
-  });
-
-  it("returns no next page on the last page", async () => {
-    vi.mocked(api.getCollectionSentences).mockResolvedValue({ collectionClozeSentences: [sentence], page: 2, perPage: 20, total: 21 });
-    const result = await callTool("list_sentences", { ...ids, page: 2 });
-    expect(resultJson(result)).toMatchObject({ nextPage: null });
-  });
-
-  it("refuses collections the user doesn't own", async () => {
-    expectToolError(await callTool("list_sentences", { ...ids, collectionId: 5 }), "No collection of the user's own with id 5");
-    expect(api.getCollectionSentences).not.toHaveBeenCalled();
-  });
-
-  it("adds sentences and reports which failed", async () => {
-    vi.mocked(api.createCollectionSentence)
-      .mockResolvedValueOnce(sentence)
-      .mockRejectedValueOnce(new Error("Text already exists in the collection with the same cloze"));
-    const result = await callTool("add_sentences", {
-      ...ids,
-      sentences: [
-        { text: "Ich {{habe}} Hunger.", translation: "I am hungry.", alternativeAnswers: ["hab"] },
-        { text: "Du {{hast}} Durst.", translation: "You are thirsty." },
-      ],
-    });
-    expect(resultJson(result)).toEqual({
-      added: [{ index: 0, ...sentence }],
-      failed: [{ index: 1, text: "Du {{hast}} Durst.", error: "Text already exists in the collection with the same cloze" }],
-    });
-    expect(api.createCollectionSentence).toHaveBeenCalledWith(pairing, {
-      collection,
-      sentence: { text: "Ich {{habe}} Hunger.", translation: "I am hungry.", alternativeAnswers: ["hab"] },
-    });
-  });
-
-  it("refuses to create a collection for users without Pro, keeping their login", async () => {
-    vi.stubEnv("CLOZEMASTER_TOKEN", "");
-    saveLogin({ authToken: "1:saved", username: "learner" });
-    vi.mocked(api.isProSubscriber).mockResolvedValue(false);
-    const result = await callTool("create_collection", { languagePairingId: 7, name: "Food" });
-    expectToolError(result, "Creating a collection needs Clozemaster Pro. Upgrade at");
-    expect(api.createCollection).not.toHaveBeenCalled();
-    expect(getAuthToken()).toBe("1:saved");
-  });
-
-  it("refuses to add sentences for users without Pro", async () => {
-    vi.mocked(api.isProSubscriber).mockResolvedValue(false);
-    const result = await callTool("add_sentences", { ...ids, sentences: [{ text: "Ich {{habe}} Hunger.", translation: "I am hungry." }] });
-    expectToolError(result, "needs Clozemaster Pro. Upgrade at");
-    expect(api.createCollectionSentence).not.toHaveBeenCalled();
-  });
-
-  it.each([
-    ["no cloze", "Ich habe Hunger."],
-    ["two clozes", "{{Ich}} {{habe}} Hunger."],
-    ["an empty cloze", "Ich {{ }} Hunger."],
-    ["unbalanced braces", "Ich {{habe Hunger."],
-  ])("rejects text with %s", async (_problem, text) => {
-    const result = await callTool("add_sentences", { ...ids, sentences: [{ text, translation: "I am hungry." }] });
-    expectToolError(result, "exactly one non-empty {{cloze}}");
-    expect(api.createCollectionSentence).not.toHaveBeenCalled();
-  });
-
-  it("rejects alternative answers containing commas", async () => {
-    const result = await callTool("add_sentences", {
-      ...ids,
-      sentences: [{ text: "Ich {{habe}} Hunger.", translation: "I am hungry.", alternativeAnswers: ["hab, habe"] }],
-    });
-    expectToolError(result, "can't contain a comma");
-  });
-
-  it("updates a sentence's text and translation", async () => {
-    const update = { text: "Ich {{hatte}} Hunger.", translation: "I was hungry." };
-    const result = await callTool("update_sentence", { ...ids, sentenceId: 900, ...update });
-    expect(resultJson(result)).toEqual({ id: 900, ...update });
-    expect(api.updateCollectionSentence).toHaveBeenCalledWith(pairing, { collection, id: 900, sentence: update });
-  });
-
-  it("updates a sentence's hint, notes and alternative answers", async () => {
-    const update = { text: "Ich {{hatte}} Hunger.", translation: "I was hungry.", hint: "haben", notes: "Past tense", alternativeAnswers: ["hatt"] };
-    const result = await callTool("update_sentence", { ...ids, sentenceId: 900, ...update });
-    expect(resultJson(result)).toEqual({ id: 900, ...update });
-    expect(api.updateCollectionSentence).toHaveBeenCalledWith(pairing, { collection, id: 900, sentence: update });
-  });
-
-  it("doesn't update a sentence the collection doesn't have", async () => {
-    vi.mocked(api.getCollectionSentence).mockRejectedValue(new api.ApiError("Clozemaster responded 404", 404));
-    const result = await callTool("update_sentence", { ...ids, sentenceId: 1, text: "Ich {{habe}} Hunger.", translation: "I am hungry." });
-    expectToolError(result, "No sentence with id 1 in collection 42");
-    expect(api.updateCollectionSentence).not.toHaveBeenCalled();
-  });
-
-  it("deletes a sentence", async () => {
-    const result = await callTool("delete_sentence", { ...ids, sentenceId: 900 });
-    expect(resultJson(result)).toEqual({ deleted: 900 });
-    expect(api.deleteCollectionSentence).toHaveBeenCalledWith(pairing, { collection, id: 900 });
-  });
-
-  it("doesn't delete a sentence the collection doesn't have", async () => {
-    vi.mocked(api.getCollectionSentence).mockRejectedValue(new api.ApiError("Clozemaster responded 404", 404));
-    const result = await callTool("delete_sentence", { ...ids, sentenceId: 1 });
-    expectToolError(result, "No sentence with id 1 in collection 42");
-    expect(api.deleteCollectionSentence).not.toHaveBeenCalled();
-  });
-
-  it("surfaces API errors as tool errors", async () => {
-    vi.mocked(api.getLanguagePairings).mockRejectedValue(new api.ApiError("Clozemaster responded 500", 500));
+  it("reports another failed status as a tool error", async () => {
+    toolCallStatus = 500;
     const result = await callTool("list_language_pairings");
     expect(result.isError).toBe(true);
     expect(resultText(result)).toBe("Clozemaster responded 500");
+  });
+
+  it("reports an unreachable server as a tool error", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => Promise.reject(new TypeError("fetch failed"))));
+    const result = await callTool("list_language_pairings");
+    expect(result.isError).toBe(true);
+    expect(resultText(result)).toBe("Couldn't reach https://www.clozemaster.com. Check your connection.");
   });
 });
