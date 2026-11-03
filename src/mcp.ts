@@ -2,7 +2,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport, StreamableHTTPError } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { CallToolRequestSchema, ListToolsRequestSchema, McpError, type CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import { CallToolRequestSchema, ListToolsRequestSchema, McpError, type CallToolResult, type ListToolsRequest, type ListToolsResult } from "@modelcontextprotocol/sdk/types.js";
 import { clientHeaders, identifyClientAs, type CliLoginStart } from "./api.js";
 import { baseUrl, clearLogin, hasLogin, isUsingSavedLogin } from "./config.js";
 import { startOrResumeBrowserLogin } from "./mcpLogin.js";
@@ -79,6 +79,17 @@ async function callRemoteTool(remote: () => Promise<Client>, params: { name: str
   }
 }
 
+// Tools are listed without a login, so a rejected saved login is dropped and the next tool call asks for a fresh one.
+async function listRemoteTools(remote: () => Promise<Client>, params: ListToolsRequest["params"]): Promise<ListToolsResult> {
+  try {
+    return await (await remote()).listTools(params);
+  } catch (error) {
+    if (!isUnauthorized(error) || !isUsingSavedLogin()) throw error;
+    clearLogin();
+    return (await remote()).listTools(params);
+  }
+}
+
 async function remoteInstructions(remote: () => Promise<Client>): Promise<string | undefined> {
   try {
     return (await remote()).getInstructions();
@@ -93,7 +104,7 @@ export async function createMcpServer(): Promise<Server> {
     { name: "clozemaster", version: currentVersion },
     { capabilities: { tools: { listChanged: true } }, instructions: await remoteInstructions(remote) },
   );
-  server.setRequestHandler(ListToolsRequestSchema, async (request) => (await remote()).listTools(request.params));
+  server.setRequestHandler(ListToolsRequestSchema, (request) => listRemoteTools(remote, request.params));
   server.setRequestHandler(CallToolRequestSchema, (request) => callRemoteTool(remote, request.params));
   return server;
 }

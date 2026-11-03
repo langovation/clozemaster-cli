@@ -26,15 +26,18 @@ const loginPrompt =
 
 let hostedCalls: HostedCall[];
 let toolCallStatus: number;
+let rejectsEveryToken: boolean;
 
 function stubHostedServer() {
   hostedCalls = [];
   toolCallStatus = 200;
+  rejectsEveryToken = false;
   vi.stubGlobal("fetch", vi.fn(async (input: string | URL, init: RequestInit = {}) => {
     const headers = new Headers(init.headers);
     if (init.method !== "POST") return new Response(null, { status: 405 });
     const message = JSON.parse(String(init.body)) as JsonRpcRequest;
     hostedCalls.push({ authToken: headers.get("Auth-Token"), client: headers.get("Clozemaster-Client"), message, url: String(input) });
+    if (rejectsEveryToken && headers.has("Auth-Token")) return new Response("{}", { status: 401 });
     if (message.id === undefined) return new Response(null, { status: 202 });
     if (message.method === "tools/call" && toolCallStatus !== 200) return new Response("{}", { status: toolCallStatus });
     return Response.json({ jsonrpc: "2.0", id: message.id, result: hostedResult(message) });
@@ -104,6 +107,15 @@ describe("MCP server", () => {
     const { tools } = await (await connectClient()).listTools();
     expect(tools.map((tool) => tool.name)).toEqual(["list_language_pairings", "add_sentences"]);
     expect(hostedCalls.every((call) => call.authToken === null)).toBe(true);
+  });
+
+  it("forgets a rejected saved login and still lists the tools", async () => {
+    vi.stubEnv("CLOZEMASTER_TOKEN", "");
+    saveLogin({ authToken: "1:expired", username: "learner" });
+    rejectsEveryToken = true;
+    const { tools } = await (await connectClient()).listTools();
+    expect(tools).toEqual(hostedTools);
+    expect(getAuthToken()).toBeUndefined();
   });
 
   it("sends the CLI login token and says the call comes from the MCP server", async () => {
