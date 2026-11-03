@@ -2,9 +2,9 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport, StreamableHTTPError } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { CallToolRequestSchema, ListToolsRequestSchema, McpError, type CallToolResult, type ListToolsRequest, type ListToolsResult } from "@modelcontextprotocol/sdk/types.js";
+import { CallToolRequestSchema, ListToolsRequestSchema, McpError, type CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { clientHeaders, identifyClientAs, type CliLoginStart } from "./api.js";
-import { baseUrl, clearLogin, hasLogin, isUsingSavedLogin } from "./config.js";
+import { baseUrl, clearLogin, getAuthToken, isUsingSavedLogin } from "./config.js";
 import { startOrResumeBrowserLogin } from "./mcpLogin.js";
 import { updateInBackground } from "./selfUpdate.js";
 import { currentVersion } from "./updateCheck.js";
@@ -50,10 +50,21 @@ function remoteConnection(): () => Promise<Client> {
   };
 }
 
-async function connectRemote(): Promise<Client> {
+async function connectClient(): Promise<Client> {
   const client = new Client({ name: "clozemaster-cli", version: currentVersion });
   await client.connect(new StreamableHTTPClientTransport(new URL(remoteMcpUrl), { fetch: fetchWithLogin }));
   return client;
+}
+
+// Connecting needs no login, so a rejected saved login is dropped and the next tool call asks for a fresh one.
+async function connectRemote(): Promise<Client> {
+  try {
+    return await connectClient();
+  } catch (error) {
+    if (!isUnauthorized(error) || !isUsingSavedLogin()) throw error;
+    clearLogin();
+    return connectClient();
+  }
 }
 
 async function loginPrompt(): Promise<CallToolResult> {
@@ -71,22 +82,11 @@ async function promptForFreshLogin(): Promise<CallToolResult> {
 
 async function callRemoteTool(remote: () => Promise<Client>, params: { name: string; arguments?: Record<string, unknown> }): Promise<CallToolResult> {
   try {
-    if (!hasLogin()) return await loginPrompt();
+    if (!getAuthToken()) return await loginPrompt();
     return (await (await remote()).callTool(params)) as CallToolResult;
   } catch (error) {
     if (isUnauthorized(error) && isUsingSavedLogin()) return promptForFreshLogin();
     return errorResult(errorMessage(error));
-  }
-}
-
-// Tools are listed without a login, so a rejected saved login is dropped and the next tool call asks for a fresh one.
-async function listRemoteTools(remote: () => Promise<Client>, params: ListToolsRequest["params"]): Promise<ListToolsResult> {
-  try {
-    return await (await remote()).listTools(params);
-  } catch (error) {
-    if (!isUnauthorized(error) || !isUsingSavedLogin()) throw error;
-    clearLogin();
-    return (await remote()).listTools(params);
   }
 }
 
@@ -104,7 +104,7 @@ export async function createMcpServer(): Promise<Server> {
     { name: "clozemaster", version: currentVersion },
     { capabilities: { tools: { listChanged: true } }, instructions: await remoteInstructions(remote) },
   );
-  server.setRequestHandler(ListToolsRequestSchema, (request) => listRemoteTools(remote, request.params));
+  server.setRequestHandler(ListToolsRequestSchema, async (request) => (await remote()).listTools(request.params));
   server.setRequestHandler(CallToolRequestSchema, (request) => callRemoteTool(remote, request.params));
   return server;
 }

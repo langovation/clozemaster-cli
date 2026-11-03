@@ -118,6 +118,13 @@ describe("MCP server", () => {
     expect(getAuthToken()).toBeUndefined();
   });
 
+  it("gives the hosted server's instructions when the saved login is stale", async () => {
+    vi.stubEnv("CLOZEMASTER_TOKEN", "");
+    saveLogin({ authToken: "1:expired", username: "learner" });
+    rejectsEveryToken = true;
+    expect((await connectClient()).getInstructions()).toBe(hostedInstructions);
+  });
+
   it("sends the CLI login token and says the call comes from the MCP server", async () => {
     api.identifyClientAs("mcp");
     await callTool("list_language_pairings");
@@ -153,6 +160,14 @@ describe("MCP server", () => {
     vi.useRealTimers();
     await client.callTool({ name: "list_language_pairings", arguments: {} });
     expect(toolCalls()[0].authToken).toBe("1:approved");
+  });
+
+  it("opens the browser login when there is only a cookie, which the hosted server doesn't accept", async () => {
+    vi.stubEnv("CLOZEMASTER_TOKEN", "");
+    vi.stubEnv("CLOZEMASTER_COOKIE", "session=abc");
+    const result = await callTool("list_language_pairings");
+    expect(resultText(result)).toBe(loginPrompt);
+    expect(toolCalls()).toEqual([]);
   });
 
   describe("when the hosted server rejects the login", () => {
