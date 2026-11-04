@@ -149,18 +149,21 @@ export function identifyClientAs(name: ClientName) {
   clientName = name;
 }
 
-function requestHeaders(): Record<string, string> {
+// Who is calling: the client, the time zone and the login.
+export function clientHeaders(): Record<string, string> {
   const authToken = getAuthToken();
   const cookie = process.env.CLOZEMASTER_COOKIE;
   return {
-    Accept: "application/json",
     "Clozemaster-Client": `${clientName}/${currentVersion}`,
-    "Content-Type": "application/json",
     "Time-Zone": Intl.DateTimeFormat().resolvedOptions().timeZone,
     "Time-Zone-Offset-Hours": String(-new Date().getTimezoneOffset() / 60),
     ...(authToken ? { "Auth-Token": authToken } : {}),
     ...(cookie ? { Cookie: cookie } : {}),
   };
+}
+
+function requestHeaders(): Record<string, string> {
+  return { Accept: "application/json", "Content-Type": "application/json", ...clientHeaders() };
 }
 
 // The API hands back absolute URLs (playDataUrl etc.), so accept those as well as paths.
@@ -268,107 +271,6 @@ export async function createCollection(languagePairing: LanguagePairing, name: s
     method: "POST",
   });
   return collection;
-}
-
-export async function pinCollection(languagePairing: LanguagePairing, collection: OwnCollection): Promise<void> {
-  await saveDashboardCollection(languagePairing, collection, true);
-}
-
-export async function unpinCollection(languagePairing: LanguagePairing, collection: OwnCollection): Promise<void> {
-  await saveDashboardCollection(languagePairing, collection, false);
-}
-
-async function saveDashboardCollection(languagePairing: LanguagePairing, collection: OwnCollection, isPinned: boolean): Promise<void> {
-  await request(`/lp/${languagePairing.id}/c/${collection.id}/uc`, {
-    body: { user_collection: { dashboard_collection: isPinned } },
-    method: "PUT",
-  });
-}
-
-export type CollectionSentence = {
-  id: number;
-  alternativeAnswers: string[];
-  hint: string | null;
-  notes: string | null;
-  pronunciation: string | null;
-  text: string;
-  translation: string;
-};
-
-export type NewCollectionSentence = {
-  alternativeAnswers?: string[];
-  hint?: string;
-  notes?: string;
-  pronunciation?: string;
-  text: string;
-  translation: string;
-};
-
-export type CollectionSentencesPage = {
-  collectionClozeSentences: CollectionSentence[];
-  page: number;
-  perPage: number;
-  total: number;
-};
-
-function collectionSentencesPath(languagePairing: LanguagePairing, collection: OwnCollection): string {
-  return `/lp/${languagePairing.id}/c/${collection.id}/ccs`;
-}
-
-export async function getCollectionSentences(
-  languagePairing: LanguagePairing,
-  { collection, page, perPage, query }: { collection: OwnCollection; page: number; perPage: number; query?: string },
-): Promise<CollectionSentencesPage> {
-  return request<CollectionSentencesPage>(collectionSentencesPath(languagePairing, collection), {
-    query: { page: String(page), per_page: String(perPage), ...(query ? { query } : {}) },
-  });
-}
-
-export async function getCollectionSentence(
-  languagePairing: LanguagePairing,
-  { collection, id }: { collection: OwnCollection; id: number },
-): Promise<CollectionSentence> {
-  const { collectionClozeSentence } = await request<{ collectionClozeSentence: CollectionSentence }>(
-    `${collectionSentencesPath(languagePairing, collection)}/${id}`,
-  );
-  return collectionClozeSentence;
-}
-
-// The server answers 200 with { errors } when a sentence doesn't save, e.g. a duplicate.
-export async function createCollectionSentence(
-  languagePairing: LanguagePairing,
-  { collection, sentence }: { collection: OwnCollection; sentence: NewCollectionSentence },
-): Promise<CollectionSentence> {
-  const { alternativeAnswers, ...fields } = sentence;
-  const response = await request<{ collectionClozeSentence?: CollectionSentence; errors?: string }>(
-    collectionSentencesPath(languagePairing, collection),
-    {
-      body: { collection_cloze_sentence: { ...fields, alternative_answers: alternativeAnswers?.join(",") } },
-      method: "POST",
-    },
-  );
-  if (!response.collectionClozeSentence) throw new Error(response.errors || "The sentence wasn't saved.");
-  return response.collectionClozeSentence;
-}
-
-// Callers check the sentence exists first, so an update never saves a different sentence by mistake.
-export async function updateCollectionSentence(
-  languagePairing: LanguagePairing,
-  { collection, id, sentence }: { collection: OwnCollection; id: number; sentence: NewCollectionSentence },
-): Promise<void> {
-  const { alternativeAnswers, ...fields } = sentence;
-  const response = await request<{ errors?: string }>(collectionSentencesPath(languagePairing, collection), {
-    body: { updates: [{ id, ...fields, alternative_answers: alternativeAnswers?.join(",") }] },
-    method: "POST",
-  });
-  if (response.errors) throw new Error(response.errors);
-}
-
-export async function deleteCollectionSentence(
-  languagePairing: LanguagePairing,
-  { collection, id }: { collection: OwnCollection; id: number },
-): Promise<void> {
-  await request(`${collectionSentencesPath(languagePairing, collection)}/${id}`, { method: "DELETE" });
 }
 
 export async function isProSubscriber(): Promise<boolean> {
