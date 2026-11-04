@@ -4,7 +4,8 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import open from "open";
 import * as api from "../src/api.js";
-import { clearLogin, getAuthToken, saveLogin } from "../src/config.js";
+import fs from "node:fs";
+import { clearLogin, configDirectory, getAuthToken, saveLogin } from "../src/config.js";
 import { createMcpServer } from "../src/mcp.js";
 
 vi.mock("../src/api.js", async (importOriginal) => ({
@@ -27,6 +28,7 @@ const loginPrompt =
 let hostedCalls: HostedCall[];
 let toolCallStatus: number;
 let toolCallErrorBody: string;
+let toolsListStatus: number;
 let rejectsEveryToken: boolean;
 let restAcceptsToken: boolean;
 let initializeHangs: boolean;
@@ -35,6 +37,7 @@ function stubHostedServer() {
   hostedCalls = [];
   toolCallStatus = 200;
   toolCallErrorBody = "{}";
+  toolsListStatus = 200;
   rejectsEveryToken = false;
   restAcceptsToken = false;
   initializeHangs = false;
@@ -51,6 +54,7 @@ function stubHostedServer() {
     if (message.id === undefined) return new Response(null, { status: 202 });
     if (message.method === "initialize" && initializeHangs) return new Promise<Response>(() => {});
     if (message.method === "tools/call" && toolCallStatus !== 200) return new Response(toolCallErrorBody, { status: toolCallStatus });
+    if (message.method === "tools/list" && toolsListStatus !== 200) return new Response("{}", { status: toolsListStatus });
     return Response.json({ jsonrpc: "2.0", id: message.id, result: hostedResult(message) });
   }));
 }
@@ -95,6 +99,7 @@ describe("MCP server", () => {
 
   afterEach(() => {
     clearLogin();
+    fs.rmSync(configDirectory, { recursive: true, force: true });
     vi.unstubAllEnvs();
     vi.clearAllMocks();
   });
@@ -136,6 +141,18 @@ describe("MCP server", () => {
     restAcceptsToken = true;
     await connectClient();
     expect(getAuthToken()).toBe("1:saved");
+  });
+
+  it("lists the last tools it got when the hosted server can't list them", async () => {
+    await (await connectClient()).listTools();
+    toolsListStatus = 503;
+    const { tools } = await (await connectClient()).listTools();
+    expect(tools).toEqual(hostedTools);
+  });
+
+  it("reports why it can't list the tools when it has never listed them", async () => {
+    toolsListStatus = 503;
+    await expect((await connectClient()).listTools()).rejects.toThrow("Clozemaster responded 503");
   });
 
   it("gives up connecting to the hosted server after 10 seconds", async () => {

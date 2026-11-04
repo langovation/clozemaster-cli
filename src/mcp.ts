@@ -2,9 +2,19 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport, StreamableHTTPError } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { CallToolRequestSchema, ListToolsRequestSchema, McpError, type CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import fs from "node:fs";
+import path from "node:path";
+import {
+  CallToolRequestSchema,
+  ErrorCode,
+  ListToolsRequestSchema,
+  McpError,
+  type CallToolResult,
+  type ListToolsRequest,
+  type ListToolsResult,
+} from "@modelcontextprotocol/sdk/types.js";
 import { clientHeaders, getLanguagePairings, identifyClientAs, isApiError, type CliLoginStart } from "./api.js";
-import { baseUrl, clearLogin, getAuthToken, isUsingSavedLogin } from "./config.js";
+import { baseUrl, clearLogin, configDirectory, getAuthToken, isUsingSavedLogin } from "./config.js";
 import { startOrResumeBrowserLogin } from "./mcpLogin.js";
 import { updateInBackground } from "./selfUpdate.js";
 import { currentVersion } from "./updateCheck.js";
@@ -13,6 +23,7 @@ import { currentVersion } from "./updateCheck.js";
 export const remoteMcpUrl = `${baseUrl}/mcp`;
 
 const CONNECT_TIMEOUT_MS = 10_000;
+const savedToolsPath = path.join(configDirectory, "mcp-tools.json");
 
 function errorResult(text: string): CallToolResult {
   return { content: [{ type: "text", text }], isError: true };
@@ -90,6 +101,32 @@ async function isLoginRejectedByApi(): Promise<boolean> {
   }
 }
 
+function readSavedTools(): ListToolsResult | undefined {
+  try {
+    return JSON.parse(fs.readFileSync(savedToolsPath, "utf8"))[baseUrl];
+  } catch {
+    return undefined;
+  }
+}
+
+function saveTools(tools: ListToolsResult) {
+  fs.mkdirSync(configDirectory, { recursive: true });
+  fs.writeFileSync(savedToolsPath, JSON.stringify({ [baseUrl]: tools }));
+}
+
+// Falls back to the last list it got, so the host still has the tools while Clozemaster can't list them.
+async function listRemoteTools(remote: () => Promise<Client>, params: ListToolsRequest["params"]): Promise<ListToolsResult> {
+  try {
+    const tools = await (await remote()).listTools(params);
+    saveTools(tools);
+    return tools;
+  } catch (error) {
+    const savedTools = readSavedTools();
+    if (savedTools) return savedTools;
+    throw new McpError(ErrorCode.InternalError, errorMessage(error));
+  }
+}
+
 async function loginPrompt(): Promise<CallToolResult> {
   return errorResult(notLoggedInMessage(await startOrResumeBrowserLogin()));
 }
@@ -127,7 +164,7 @@ export async function createMcpServer(): Promise<Server> {
     { name: "clozemaster", version: currentVersion },
     { capabilities: { tools: { listChanged: true } }, instructions: await remoteInstructions(remote) },
   );
-  server.setRequestHandler(ListToolsRequestSchema, async (request) => (await remote()).listTools(request.params));
+  server.setRequestHandler(ListToolsRequestSchema, (request) => listRemoteTools(remote, request.params));
   server.setRequestHandler(CallToolRequestSchema, (request) => callRemoteTool(remote, request.params));
   return server;
 }
