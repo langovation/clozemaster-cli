@@ -22,10 +22,22 @@ function notLoggedInMessage(login: CliLoginStart): string {
 
 function errorMessage(error: unknown): string {
   if (isUnauthorized(error)) return "You're not logged in. Run `clozemaster login`.";
+  if (error instanceof StreamableHTTPError && error.code === 429) return "Clozemaster is getting too many requests from you. Wait a few minutes and try again.";
+  if (error instanceof StreamableHTTPError && error.code === 413) return serverErrorMessage(error) ?? "Clozemaster responded 413";
   if (error instanceof StreamableHTTPError) return `Clozemaster responded ${error.code}`;
   if (error instanceof McpError) return error.message;
   if (error instanceof Error && error.name === "TimeoutError") return `${baseUrl} took too long to answer. Try again.`;
   return `Couldn't reach ${baseUrl}. Check your connection.`;
+}
+
+// The SDK puts the response body after this prefix; the server's body is a JSON-RPC error.
+function serverErrorMessage(error: StreamableHTTPError): string | undefined {
+  const [, body] = error.message.split("Error POSTing to endpoint: ");
+  try {
+    return JSON.parse(body).error.message;
+  } catch {
+    return undefined;
+  }
 }
 
 function isUnauthorized(error: unknown): boolean {

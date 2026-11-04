@@ -26,11 +26,13 @@ const loginPrompt =
 
 let hostedCalls: HostedCall[];
 let toolCallStatus: number;
+let toolCallErrorBody: string;
 let rejectsEveryToken: boolean;
 
 function stubHostedServer() {
   hostedCalls = [];
   toolCallStatus = 200;
+  toolCallErrorBody = "{}";
   rejectsEveryToken = false;
   vi.stubGlobal("fetch", vi.fn(async (input: string | URL, init: RequestInit = {}) => {
     const headers = new Headers(init.headers);
@@ -39,7 +41,7 @@ function stubHostedServer() {
     hostedCalls.push({ authToken: headers.get("Auth-Token"), client: headers.get("Clozemaster-Client"), message, url: String(input) });
     if (rejectsEveryToken && headers.has("Auth-Token")) return new Response("{}", { status: 401 });
     if (message.id === undefined) return new Response(null, { status: 202 });
-    if (message.method === "tools/call" && toolCallStatus !== 200) return new Response("{}", { status: toolCallStatus });
+    if (message.method === "tools/call" && toolCallStatus !== 200) return new Response(toolCallErrorBody, { status: toolCallStatus });
     return Response.json({ jsonrpc: "2.0", id: message.id, result: hostedResult(message) });
   }));
 }
@@ -198,6 +200,19 @@ describe("MCP server", () => {
     const result = await callTool("list_language_pairings");
     expect(result.isError).toBe(true);
     expect(resultText(result)).toBe("Clozemaster responded 500");
+  });
+
+  it("tells the user to wait when they send too many requests", async () => {
+    toolCallStatus = 429;
+    const result = await callTool("list_language_pairings");
+    expect(resultText(result)).toBe("Clozemaster is getting too many requests from you. Wait a few minutes and try again.");
+  });
+
+  it("passes through the hosted server's message for a request that's too large", async () => {
+    toolCallStatus = 413;
+    toolCallErrorBody = JSON.stringify({ jsonrpc: "2.0", id: null, error: { code: -32600, message: "Request body is larger than 4 MB." } });
+    const result = await callTool("add_sentences", { collectionId: 1 });
+    expect(resultText(result)).toBe("Request body is larger than 4 MB.");
   });
 
   it("reports an unreachable server as a tool error", async () => {
