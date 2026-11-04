@@ -7,6 +7,8 @@ One `clozemaster` command does two things:
 
 Both use the same install and the same login.
 
+https://github.com/user-attachments/assets/2fcd2f4b-a4c4-4692-9848-4a7160cb1b7c
+
 ## Install
 
 One line installs a `clozemaster` command on macOS or Linux:
