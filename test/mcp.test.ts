@@ -28,12 +28,14 @@ let hostedCalls: HostedCall[];
 let toolCallStatus: number;
 let toolCallErrorBody: string;
 let rejectsEveryToken: boolean;
+let initializeHangs: boolean;
 
 function stubHostedServer() {
   hostedCalls = [];
   toolCallStatus = 200;
   toolCallErrorBody = "{}";
   rejectsEveryToken = false;
+  initializeHangs = false;
   vi.stubGlobal("fetch", vi.fn(async (input: string | URL, init: RequestInit = {}) => {
     const headers = new Headers(init.headers);
     if (init.method !== "POST") return new Response(null, { status: 405 });
@@ -41,6 +43,7 @@ function stubHostedServer() {
     hostedCalls.push({ authToken: headers.get("Auth-Token"), client: headers.get("Clozemaster-Client"), message, url: String(input) });
     if (rejectsEveryToken && headers.has("Auth-Token")) return new Response("{}", { status: 401 });
     if (message.id === undefined) return new Response(null, { status: 202 });
+    if (message.method === "initialize" && initializeHangs) return new Promise<Response>(() => {});
     if (message.method === "tools/call" && toolCallStatus !== 200) return new Response(toolCallErrorBody, { status: toolCallStatus });
     return Response.json({ jsonrpc: "2.0", id: message.id, result: hostedResult(message) });
   }));
@@ -118,6 +121,17 @@ describe("MCP server", () => {
     const { tools } = await (await connectClient()).listTools();
     expect(tools).toEqual(hostedTools);
     expect(getAuthToken()).toBeUndefined();
+  });
+
+  it("gives up connecting to the hosted server after 10 seconds", async () => {
+    vi.useFakeTimers();
+    initializeHangs = true;
+    let isStarted = false;
+    const started = createMcpServer().then(() => (isStarted = true));
+    await vi.advanceTimersByTimeAsync(10_000);
+    vi.useRealTimers();
+    expect(isStarted).toBe(true);
+    await started;
   });
 
   it("gives the hosted server's instructions when the saved login is stale", async () => {

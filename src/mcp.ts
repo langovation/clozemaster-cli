@@ -12,6 +12,8 @@ import { currentVersion } from "./updateCheck.js";
 // The tools live on the hosted Clozemaster MCP server; this passes calls through with the CLI's login.
 export const remoteMcpUrl = `${baseUrl}/mcp`;
 
+const CONNECT_TIMEOUT_MS = 10_000;
+
 function errorResult(text: string): CallToolResult {
   return { content: [{ type: "text", text }], isError: true };
 }
@@ -64,7 +66,7 @@ function remoteConnection(): () => Promise<Client> {
 
 async function connectClient(): Promise<Client> {
   const client = new Client({ name: "clozemaster-cli", version: currentVersion });
-  await client.connect(new StreamableHTTPClientTransport(new URL(remoteMcpUrl), { fetch: fetchWithLogin }));
+  await client.connect(new StreamableHTTPClientTransport(new URL(remoteMcpUrl), { fetch: fetchWithLogin }), { timeout: CONNECT_TIMEOUT_MS });
   return client;
 }
 
