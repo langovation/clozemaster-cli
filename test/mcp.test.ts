@@ -28,6 +28,7 @@ let hostedCalls: HostedCall[];
 let toolCallStatus: number;
 let toolCallErrorBody: string;
 let rejectsEveryToken: boolean;
+let restAcceptsToken: boolean;
 let initializeHangs: boolean;
 
 function stubHostedServer() {
@@ -35,9 +36,14 @@ function stubHostedServer() {
   toolCallStatus = 200;
   toolCallErrorBody = "{}";
   rejectsEveryToken = false;
+  restAcceptsToken = false;
   initializeHangs = false;
   vi.stubGlobal("fetch", vi.fn(async (input: string | URL, init: RequestInit = {}) => {
     const headers = new Headers(init.headers);
+    if (String(input).includes("/api/v1/lp")) {
+      const rejected = rejectsEveryToken && !restAcceptsToken && headers.has("Auth-Token");
+      return rejected ? new Response("{}", { status: 401 }) : Response.json({ languagePairings: [] });
+    }
     if (init.method !== "POST") return new Response(null, { status: 405 });
     const message = JSON.parse(String(init.body)) as JsonRpcRequest;
     hostedCalls.push({ authToken: headers.get("Auth-Token"), client: headers.get("Clozemaster-Client"), message, url: String(input) });
@@ -121,6 +127,15 @@ describe("MCP server", () => {
     const { tools } = await (await connectClient()).listTools();
     expect(tools).toEqual(hostedTools);
     expect(getAuthToken()).toBeUndefined();
+  });
+
+  it("keeps a saved login the Clozemaster API still accepts when the hosted server rejects it", async () => {
+    vi.stubEnv("CLOZEMASTER_TOKEN", "");
+    saveLogin({ authToken: "1:saved", username: "learner" });
+    rejectsEveryToken = true;
+    restAcceptsToken = true;
+    await connectClient();
+    expect(getAuthToken()).toBe("1:saved");
   });
 
   it("gives up connecting to the hosted server after 10 seconds", async () => {

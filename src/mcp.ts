@@ -3,7 +3,7 @@ import { StreamableHTTPClientTransport, StreamableHTTPError } from "@modelcontex
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema, McpError, type CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import { clientHeaders, identifyClientAs, type CliLoginStart } from "./api.js";
+import { clientHeaders, getLanguagePairings, identifyClientAs, isApiError, type CliLoginStart } from "./api.js";
 import { baseUrl, clearLogin, getAuthToken, isUsingSavedLogin } from "./config.js";
 import { startOrResumeBrowserLogin } from "./mcpLogin.js";
 import { updateInBackground } from "./selfUpdate.js";
@@ -70,14 +70,23 @@ async function connectClient(): Promise<Client> {
   return client;
 }
 
-// Connecting needs no login, so a rejected saved login is dropped and the next tool call asks for a fresh one.
+// Connecting needs no login, so a saved login the API also rejects is dropped and the next tool call asks for a fresh one.
 async function connectRemote(): Promise<Client> {
   try {
     return await connectClient();
   } catch (error) {
-    if (!isUnauthorized(error) || !isUsingSavedLogin()) throw error;
+    if (!isUnauthorized(error) || !isUsingSavedLogin() || !(await isLoginRejectedByApi())) throw error;
     clearLogin();
     return connectClient();
+  }
+}
+
+async function isLoginRejectedByApi(): Promise<boolean> {
+  try {
+    await getLanguagePairings();
+    return false;
+  } catch (error) {
+    return isApiError(error, 401);
   }
 }
 
