@@ -294,6 +294,20 @@ describe("MCP server", () => {
     expect(api.createCollectionSentence).not.toHaveBeenCalled();
   });
 
+  it("refuses to update a sentence for users without Pro", async () => {
+    vi.mocked(api.isProSubscriber).mockResolvedValue(false);
+    const result = await callTool("update_sentence", { ...ids, sentenceId: 900, text: "Ich {{habe}} Hunger.", translation: "I am hungry." });
+    expectToolError(result, "Editing sentences needs Clozemaster Pro. Upgrade at");
+    expect(api.updateCollectionSentence).not.toHaveBeenCalled();
+  });
+
+  it("refuses to delete a sentence for users without Pro", async () => {
+    vi.mocked(api.isProSubscriber).mockResolvedValue(false);
+    const result = await callTool("delete_sentence", { ...ids, sentenceId: 900 });
+    expectToolError(result, "Deleting sentences needs Clozemaster Pro. Upgrade at");
+    expect(api.deleteCollectionSentence).not.toHaveBeenCalled();
+  });
+
   it.each([
     ["no cloze", "Ich habe Hunger."],
     ["two clozes", "{{Ich}} {{habe}} Hunger."],

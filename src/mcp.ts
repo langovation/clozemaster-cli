@@ -35,7 +35,7 @@ Typical workflow:
 2. list_collections to pick one of the user's own collections, or create_collection to make a new one (it is pinned to the user's dashboard). pin_collection and unpin_collection show or hide a collection on the dashboard.
 3. add_sentences to write sentences into it. list_sentences, update_sentence and delete_sentence review and fix them.
 
-Only the user's own collections can be read or changed here. Creating collections and adding sentences need Clozemaster Pro.`;
+Only the user's own collections can be read or changed here. Creating collections and adding, editing or deleting sentences need Clozemaster Pro.`;
 
 const CLOZE_EXAMPLE = "`Ich {{habe}} Hunger.`";
 const CLOZE_PATTERN = /^[^{}]*\{\{[^{}]*[^{}\s][^{}]*\}\}[^{}]*$/;
@@ -228,12 +228,14 @@ async function addSentences(input: CollectionIds & { sentences: NewCollectionSen
 }
 
 async function updateSentence({ languagePairingId, collectionId, sentenceId, ...sentence }: SentenceIds & NewCollectionSentence) {
+  await ensureProSubscriber(new ProRequiredError("Editing sentences needs Clozemaster Pro.", "mcp_update_sentence"));
   const { pairing, collection } = await findPairingAndCollectionWithSentence({ languagePairingId, collectionId, sentenceId });
   await updateCollectionSentence(pairing, { collection, id: sentenceId, sentence });
   return { id: sentenceId, ...sentence };
 }
 
 async function deleteSentence(input: SentenceIds) {
+  await ensureProSubscriber(new ProRequiredError("Deleting sentences needs Clozemaster Pro.", "mcp_delete_sentence"));
   const { pairing, collection } = await findPairingAndCollectionWithSentence(input);
   await deleteCollectionSentence(pairing, { collection, id: input.sentenceId });
   return { deleted: input.sentenceId };
@@ -333,7 +335,7 @@ export function createMcpServer(): McpServer {
     "update_sentence",
     {
       annotations: REPLACES,
-      description: `Change a sentence in one of the user's own collections, keeping the learner's progress on it. Send text and translation, even if only one changes; hint, notes, alternativeAnswers and pronunciation stay as they are unless sent. text is in the pairing's targetLanguage with exactly one word wrapped in double curly braces, the single word the learner is meant to learn, e.g. ${CLOZE_EXAMPLE}; translation is the whole sentence in the pairing's baseLanguage. Returns the sentence's id and the fields sent.`,
+      description: `Change a sentence in one of the user's own collections (needs Clozemaster Pro), keeping the learner's progress on it. Send text and translation, even if only one changes; hint, notes, alternativeAnswers and pronunciation stay as they are unless sent. text is in the pairing's targetLanguage with exactly one word wrapped in double curly braces, the single word the learner is meant to learn, e.g. ${CLOZE_EXAMPLE}; translation is the whole sentence in the pairing's baseLanguage. Returns the sentence's id and the fields sent.`,
       inputSchema: { languagePairingId, collectionId, sentenceId, ...newSentence.shape },
     },
     (input) => runTool(() => updateSentence(input)),
@@ -343,7 +345,7 @@ export function createMcpServer(): McpServer {
     "delete_sentence",
     {
       annotations: DELETES,
-      description: "Permanently delete a sentence from one of the user's own collections. Returns { deleted: sentenceId }.",
+      description: "Permanently delete a sentence from one of the user's own collections (needs Clozemaster Pro). Returns { deleted: sentenceId }.",
       inputSchema: { languagePairingId, collectionId, sentenceId },
     },
     (input) => runTool(() => deleteSentence(input)),

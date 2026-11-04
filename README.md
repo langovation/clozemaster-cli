@@ -51,8 +51,8 @@ It's a local MCP server that talks over stdio. Your AI app starts it in the back
 | `create_collection` | Make a new, empty collection (needs Clozemaster Pro) |
 | `list_sentences` | Page through a collection's sentences |
 | `add_sentences` | Add sentences to a collection (needs Clozemaster Pro) |
-| `update_sentence` | Change a sentence's text and translation |
-| `delete_sentence` | Delete a sentence |
+| `update_sentence` | Change a sentence's text and translation (needs Clozemaster Pro) |
+| `delete_sentence` | Delete a sentence (needs Clozemaster Pro) |
 
 A typical session: the AI lists your language pairings, picks or creates a collection, then adds sentences to it. It only touches collections you own, and it doesn't play rounds.
 
