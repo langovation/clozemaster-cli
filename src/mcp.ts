@@ -1,99 +1,29 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport, StreamableHTTPError } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import { z } from "zod";
+import fs from "node:fs";
+import path from "node:path";
 import {
-  createCollection,
-  createCollectionSentence,
-  deleteCollectionSentence,
-  getCollectionSentence,
-  getCollectionSentences,
-  getLanguagePairings,
-  getOwnCollections,
-  identifyClientAs,
-  isApiError,
-  isProSubscriber,
-  pinCollection,
-  ProRequiredError,
-  unpinCollection,
-  updateCollectionSentence,
-  type CliLoginStart,
-  type CollectionSentence,
-  type LanguagePairing,
-  type NewCollectionSentence,
-  type OwnCollection,
-} from "./api.js";
-import { clearLogin, hasLogin, isUsingSavedLogin } from "./config.js";
+  CallToolRequestSchema,
+  ErrorCode,
+  ListToolsRequestSchema,
+  McpError,
+  type CallToolResult,
+  type ListToolsRequest,
+  type ListToolsResult,
+} from "@modelcontextprotocol/sdk/types.js";
+import { clientHeaders, getLanguagePairings, identifyClientAs, isApiError, type CliLoginStart } from "./api.js";
+import { baseUrl, clearLogin, configDirectory, getAuthToken, isUsingSavedLogin } from "./config.js";
 import { startOrResumeBrowserLogin } from "./mcpLogin.js";
 import { updateInBackground } from "./selfUpdate.js";
 import { currentVersion } from "./updateCheck.js";
 
-const INSTRUCTIONS = `Manage the sentences in the user's own Clozemaster collections. Clozemaster teaches a language with cloze sentences: a sentence in the language being learned with one word hidden, which the learner fills in.
+// The tools live on the hosted Clozemaster MCP server; this passes calls through with the CLI's login.
+export const remoteMcpUrl = `${baseUrl}/mcp`;
 
-Typical workflow:
-1. list_language_pairings: pick the pairing for the language the user means. Note its id, its targetLanguage (the language being learned, which sentences are written in) and its baseLanguage (the learner's own language, which translations are written in).
-2. list_collections to pick one of the user's own collections, or create_collection to make a new one (it is pinned to the user's dashboard). pin_collection and unpin_collection show or hide a collection on the dashboard.
-3. add_sentences to write sentences into it. list_sentences, update_sentence and delete_sentence review and fix them.
-
-Only the user's own collections can be read or changed here. Creating collections and adding, editing or deleting sentences need Clozemaster Pro.`;
-
-const CLOZE_EXAMPLE = "`Ich {{habe}} Hunger.`";
-const CLOZE_PATTERN = /^[^{}]*\{\{[^{}]*[^{}\s][^{}]*\}\}[^{}]*$/;
-const MAX_ALTERNATIVE_ANSWERS_LENGTH = 100;
-const MAX_NOTES_LENGTH = 200;
-const MAX_SENTENCES_PER_CALL = 50;
-const MAX_PER_PAGE = 100;
-
-type CollectionIds = { languagePairingId: number; collectionId: number };
-type SentenceIds = CollectionIds & { sentenceId: number };
-
-const positiveId = (description: string) => z.number().int().positive().describe(description);
-const nonEmptyText = () => z.string().trim().min(1);
-
-const languagePairingId = positiveId("`id` of a language pairing from list_language_pairings.");
-const collectionId = positiveId("`id` of one of the user's own collections, from list_collections or create_collection.");
-const sentenceId = positiveId("`id` of a sentence in that collection, from list_sentences or add_sentences.");
-const clozeText = z
-  .string()
-  .regex(CLOZE_PATTERN, `text must contain exactly one non-empty {{cloze}} and no other braces, e.g. ${CLOZE_EXAMPLE}`)
-  .describe(
-    `The sentence in the pairing's targetLanguage, with exactly one word wrapped in double curly braces: the single word the learner is meant to learn, e.g. ${CLOZE_EXAMPLE}. No other braces anywhere.`,
-  );
-const translation = nonEmptyText().describe("Translation of the whole sentence into the pairing's baseLanguage. Plain text, no braces.");
-
-const newSentence = z.object({
-  text: clozeText,
-  translation,
-  hint: nonEmptyText()
-    .optional()
-    .describe("Optional short clue shown before the learner answers. Leave out unless the user asks for a hint. Must not give the answer away."),
-  notes: nonEmptyText()
-    .max(MAX_NOTES_LENGTH)
-    .optional()
-    .describe(`Optional note kept with the sentence, at most ${MAX_NOTES_LENGTH} characters.`),
-  alternativeAnswers: z
-    .array(nonEmptyText().regex(/^[^,]+$/, "an alternative answer can't contain a comma"))
-    .refine(
-      (answers) => answers.join(",").length <= MAX_ALTERNATIVE_ANSWERS_LENGTH,
-      `alternativeAnswers joined with commas must be at most ${MAX_ALTERNATIVE_ANSWERS_LENGTH} characters`,
-    )
-    .optional()
-    .describe(
-      `Optional other words also accepted in place of the hidden word, e.g. another spelling. No commas; at most ${MAX_ALTERNATIVE_ANSWERS_LENGTH} characters in total.`,
-    ),
-  pronunciation: nonEmptyText()
-    .optional()
-    .describe("Optional reading of the whole sentence shown after answering, e.g. pinyin or romaji. Only for languages not written in Latin script."),
-});
-
-function errorMessage(error: unknown): string {
-  if (error instanceof ProRequiredError) return `${error.message} Upgrade at ${error.upgradeUrl}`;
-  return error instanceof Error ? error.message : String(error);
-}
-
-function jsonResult(value: unknown): CallToolResult {
-  return { content: [{ type: "text", text: JSON.stringify(value) }] };
-}
+const CONNECT_TIMEOUT_MS = 10_000;
+const savedToolsPath = path.join(configDirectory, "mcp-tools.json");
 
 function errorResult(text: string): CallToolResult {
   return { content: [{ type: "text", text }], isError: true };
@@ -103,13 +33,97 @@ function notLoggedInMessage(login: CliLoginStart): string {
   return `Not logged in to Clozemaster yet. A browser window opened to log in, showing the code ${login.userCode} (if it didn't open, visit ${login.verificationUrl}). Ask the user to log in and approve it there, then call this tool again.`;
 }
 
-async function runTool(action: () => Promise<unknown>): Promise<CallToolResult> {
+function errorMessage(error: unknown): string {
+  if (isUnauthorized(error)) return "You're not logged in. Run `clozemaster login`.";
+  if (error instanceof StreamableHTTPError && error.code === 429) return "Clozemaster is getting too many requests from you. Wait a few minutes and try again.";
+  if (error instanceof StreamableHTTPError && error.code === 413) return serverErrorMessage(error) ?? "Clozemaster responded 413";
+  if (error instanceof StreamableHTTPError) return `Clozemaster responded ${error.code}`;
+  if (error instanceof McpError) return error.message;
+  if (error instanceof Error && error.name === "TimeoutError") return `${baseUrl} took too long to answer. Try again.`;
+  return `Couldn't reach ${baseUrl}. Check your connection.`;
+}
+
+// The SDK puts the response body after this prefix; the server's body is a JSON-RPC error.
+function serverErrorMessage(error: StreamableHTTPError): string | undefined {
+  const [, body] = error.message.split("Error POSTing to endpoint: ");
   try {
-    if (!hasLogin()) return await loginPrompt();
-    return jsonResult(await action());
+    return JSON.parse(body).error.message;
+  } catch {
+    return undefined;
+  }
+}
+
+function isUnauthorized(error: unknown): boolean {
+  return error instanceof StreamableHTTPError && error.code === 401;
+}
+
+// Reads the login on every request, so a login approved mid-session is used straight away.
+const fetchWithLogin: typeof fetch = (url, init) => {
+  const headers = new Headers(init?.headers);
+  Object.entries(clientHeaders()).forEach(([name, value]) => headers.set(name, value));
+  return fetch(url, { ...init, headers });
+};
+
+function remoteConnection(): () => Promise<Client> {
+  let client: Promise<Client> | undefined;
+  return () => {
+    client ||= connectRemote().catch((error) => {
+      client = undefined;
+      throw error;
+    });
+    return client;
+  };
+}
+
+async function connectClient(): Promise<Client> {
+  const client = new Client({ name: "clozemaster-cli", version: currentVersion });
+  await client.connect(new StreamableHTTPClientTransport(new URL(remoteMcpUrl), { fetch: fetchWithLogin }), { timeout: CONNECT_TIMEOUT_MS });
+  return client;
+}
+
+// Connecting needs no login, so a saved login the API also rejects is dropped and the next tool call asks for a fresh one.
+async function connectRemote(): Promise<Client> {
+  try {
+    return await connectClient();
   } catch (error) {
-    if (isApiError(error, 401) && isUsingSavedLogin()) return promptForFreshLogin();
-    return errorResult(errorMessage(error));
+    if (!isUnauthorized(error) || !isUsingSavedLogin() || !(await isLoginRejectedByApi())) throw error;
+    clearLogin();
+    return connectClient();
+  }
+}
+
+async function isLoginRejectedByApi(): Promise<boolean> {
+  try {
+    await getLanguagePairings();
+    return false;
+  } catch (error) {
+    return isApiError(error, 401);
+  }
+}
+
+function readSavedTools(): ListToolsResult | undefined {
+  try {
+    return JSON.parse(fs.readFileSync(savedToolsPath, "utf8"))[baseUrl];
+  } catch {
+    return undefined;
+  }
+}
+
+function saveTools(tools: ListToolsResult) {
+  fs.mkdirSync(configDirectory, { recursive: true });
+  fs.writeFileSync(savedToolsPath, JSON.stringify({ [baseUrl]: tools }));
+}
+
+// Falls back to the last list it got, so the host still has the tools while Clozemaster can't list them.
+async function listRemoteTools(remote: () => Promise<Client>, params: ListToolsRequest["params"]): Promise<ListToolsResult> {
+  try {
+    const tools = await (await remote()).listTools(params);
+    saveTools(tools);
+    return tools;
+  } catch (error) {
+    const savedTools = readSavedTools();
+    if (savedTools) return savedTools;
+    throw new McpError(ErrorCode.InternalError, errorMessage(error));
   }
 }
 
@@ -126,244 +140,39 @@ async function promptForFreshLogin(): Promise<CallToolResult> {
   }
 }
 
-// The server answers a missing Pro subscription with 401, which would otherwise read as a revoked login.
-async function ensureProSubscriber(errorForFreeUsers: ProRequiredError) {
-  if (!(await isProSubscriber())) throw errorForFreeUsers;
-}
-
-async function findLanguagePairing(id: number): Promise<LanguagePairing> {
-  const pairing = (await getLanguagePairings()).find((candidate) => candidate.id === id);
-  if (!pairing) throw new Error(`No language pairing with id ${id}. Call list_language_pairings for valid ids.`);
-  return pairing;
-}
-
-async function findOwnCollection(pairing: LanguagePairing, id: number): Promise<OwnCollection> {
-  const collection = (await getOwnCollections(pairing)).find((candidate) => candidate.id === id);
-  if (!collection) {
-    throw new Error(`No collection of the user's own with id ${id} in this language pairing. Call list_collections for valid ids.`);
-  }
-  return collection;
-}
-
-async function findPairingAndCollection(ids: CollectionIds) {
-  const pairing = await findLanguagePairing(ids.languagePairingId);
-  return { pairing, collection: await findOwnCollection(pairing, ids.collectionId) };
-}
-
-async function findPairingAndCollectionWithSentence(ids: SentenceIds) {
-  const { pairing, collection } = await findPairingAndCollection(ids);
+async function callRemoteTool(remote: () => Promise<Client>, params: { name: string; arguments?: Record<string, unknown> }): Promise<CallToolResult> {
   try {
-    await getCollectionSentence(pairing, { collection, id: ids.sentenceId });
+    if (!getAuthToken()) return await loginPrompt();
+    return (await (await remote()).callTool(params)) as CallToolResult;
   } catch (error) {
-    if (isApiError(error, 404)) {
-      throw new Error(`No sentence with id ${ids.sentenceId} in collection ${collection.id}. Call list_sentences for valid ids.`);
-    }
-    throw error;
+    if (isUnauthorized(error) && isUsingSavedLogin()) return promptForFreshLogin();
+    return errorResult(errorMessage(error));
   }
-  return { pairing, collection };
 }
 
-function summarizePairing({ id, baseLanguageName, targetLanguageName }: LanguagePairing) {
-  return { id, targetLanguage: targetLanguageName, baseLanguage: baseLanguageName };
-}
-
-function summarizeCollection({ id, name }: OwnCollection) {
-  return { id, name };
-}
-
-function summarizeSentence({ id, alternativeAnswers, hint, notes, pronunciation, text, translation }: CollectionSentence) {
-  return { id, text, translation, hint, notes, alternativeAnswers, pronunciation };
-}
-
-async function listSentences(input: CollectionIds & { page: number; perPage: number; query?: string }) {
-  const { pairing, collection } = await findPairingAndCollection(input);
-  const { collectionClozeSentences, page, perPage, total } = await getCollectionSentences(pairing, {
-    collection,
-    page: input.page,
-    perPage: input.perPage,
-    query: input.query,
-  });
-  return {
-    sentences: collectionClozeSentences.map(summarizeSentence),
-    page,
-    perPage,
-    total,
-    nextPage: page * perPage < total ? page + 1 : null,
-  };
-}
-
-async function createCollectionForPro(languagePairingId: number, name: string) {
-  await ensureProSubscriber(new ProRequiredError("Creating a collection needs Clozemaster Pro.", "mcp_create_collection"));
-  const pairing = await findLanguagePairing(languagePairingId);
-  const collection = await createCollection(pairing, name);
-  await pinCollection(pairing, collection);
-  return summarizeCollection(collection);
-}
-
-async function pinOwnCollection(ids: CollectionIds) {
-  const { pairing, collection } = await findPairingAndCollection(ids);
-  await pinCollection(pairing, collection);
-  return { pinned: collection.id };
-}
-
-async function unpinOwnCollection(ids: CollectionIds) {
-  const { pairing, collection } = await findPairingAndCollection(ids);
-  await unpinCollection(pairing, collection);
-  return { unpinned: collection.id };
-}
-
-async function addSentences(input: CollectionIds & { sentences: NewCollectionSentence[] }) {
-  await ensureProSubscriber(new ProRequiredError("Adding sentences to a collection needs Clozemaster Pro.", "mcp_add_sentences"));
-  const { pairing, collection } = await findPairingAndCollection(input);
-  const added = [];
-  const failed = [];
-  for (const [index, sentence] of input.sentences.entries()) {
-    try {
-      added.push({ index, ...summarizeSentence(await createCollectionSentence(pairing, { collection, sentence })) });
-    } catch (error) {
-      failed.push({ index, text: sentence.text, error: errorMessage(error) });
-    }
+async function remoteInstructions(remote: () => Promise<Client>): Promise<string | undefined> {
+  try {
+    return (await remote()).getInstructions();
+  } catch {
+    return undefined;
   }
-  return { added, failed };
 }
 
-async function updateSentence({ languagePairingId, collectionId, sentenceId, ...sentence }: SentenceIds & NewCollectionSentence) {
-  await ensureProSubscriber(new ProRequiredError("Editing sentences needs Clozemaster Pro.", "mcp_update_sentence"));
-  const { pairing, collection } = await findPairingAndCollectionWithSentence({ languagePairingId, collectionId, sentenceId });
-  await updateCollectionSentence(pairing, { collection, id: sentenceId, sentence });
-  return { id: sentenceId, ...sentence };
-}
-
-async function deleteSentence(input: SentenceIds) {
-  await ensureProSubscriber(new ProRequiredError("Deleting sentences needs Clozemaster Pro.", "mcp_delete_sentence"));
-  const { pairing, collection } = await findPairingAndCollectionWithSentence(input);
-  await deleteCollectionSentence(pairing, { collection, id: input.sentenceId });
-  return { deleted: input.sentenceId };
-}
-
-const READ_ONLY = { readOnlyHint: true, openWorldHint: false };
-const CREATES = { destructiveHint: false, idempotentHint: false, openWorldHint: false };
-const REPLACES = { destructiveHint: false, idempotentHint: true, openWorldHint: false };
-const DELETES = { destructiveHint: true, idempotentHint: true, openWorldHint: false };
-
-export function createMcpServer(): McpServer {
-  const server = new McpServer({ name: "clozemaster", version: currentVersion }, { instructions: INSTRUCTIONS });
-
-  server.registerTool(
-    "list_language_pairings",
-    {
-      annotations: READ_ONLY,
-      description:
-        "List the languages the user is learning. Returns [{ id, targetLanguage, baseLanguage }]: targetLanguage is the language being learned (sentence text is written in it), baseLanguage is the learner's own (translations are written in it). Every other tool takes one of these ids as languagePairingId.",
-    },
-    () => runTool(async () => (await getLanguagePairings()).map(summarizePairing)),
+export async function createMcpServer(): Promise<Server> {
+  const remote = remoteConnection();
+  const server = new Server(
+    { name: "clozemaster", version: currentVersion },
+    { capabilities: { tools: { listChanged: true } }, instructions: await remoteInstructions(remote) },
   );
-
-  server.registerTool(
-    "list_collections",
-    {
-      annotations: READ_ONLY,
-      description:
-        "List the user's own collections in a language pairing, most recently updated first. Returns [{ id, name }]. Only these collections can be read or changed with the sentence tools.",
-      inputSchema: { languagePairingId },
-    },
-    ({ languagePairingId }) => runTool(async () => (await getOwnCollections(await findLanguagePairing(languagePairingId))).map(summarizeCollection)),
-  );
-
-  server.registerTool(
-    "create_collection",
-    {
-      annotations: CREATES,
-      description: "Create a new, empty collection owned by the user in a language pairing (needs Clozemaster Pro) and pin it to their dashboard. Returns { id, name }; pass that id as collectionId to add_sentences.",
-      inputSchema: { languagePairingId, name: nonEmptyText().describe("Name of the new collection, e.g. `Kitchen words`.") },
-    },
-    ({ languagePairingId, name }) => runTool(() => createCollectionForPro(languagePairingId, name)),
-  );
-
-  server.registerTool(
-    "pin_collection",
-    {
-      annotations: REPLACES,
-      description: "Pin one of the user's own collections to their Clozemaster dashboard. Returns { pinned: collectionId }.",
-      inputSchema: { languagePairingId, collectionId },
-    },
-    (input) => runTool(() => pinOwnCollection(input)),
-  );
-
-  server.registerTool(
-    "unpin_collection",
-    {
-      annotations: REPLACES,
-      description: "Unpin one of the user's own collections from their Clozemaster dashboard, keeping the collection and its sentences. Returns { unpinned: collectionId }.",
-      inputSchema: { languagePairingId, collectionId },
-    },
-    (input) => runTool(() => unpinOwnCollection(input)),
-  );
-
-  server.registerTool(
-    "list_sentences",
-    {
-      annotations: READ_ONLY,
-      description:
-        "List the sentences in one of the user's own collections, one page at a time, optionally only those matching query. To find a particular sentence, pass query rather than paging through the collection. Returns { sentences: [{ id, text, translation, hint, notes, alternativeAnswers, pronunciation }], page, perPage, total, nextPage }. text marks the hidden word with {{double curly braces}}. nextPage is null on the last page.",
-      inputSchema: {
-        languagePairingId,
-        collectionId,
-        page: z.number().int().positive().default(1).describe("Page number, starting at 1."),
-        perPage: z.number().int().min(1).max(MAX_PER_PAGE).default(20).describe(`Sentences per page, 1 to ${MAX_PER_PAGE}.`),
-        query: z.string().min(1).optional().describe("Only sentences whose text contains this word or phrase as whole words, ignoring case, e.g. `fragor`. Add * at either end to match part of a word, e.g. `fragor*`."),
-      },
-    },
-    (input) => runTool(() => listSentences(input)),
-  );
-
-  server.registerTool(
-    "add_sentences",
-    {
-      annotations: CREATES,
-      description: `Add up to ${MAX_SENTENCES_PER_CALL} new sentences to one of the user's own collections. Needs Clozemaster Pro. Each sentence's text is in the pairing's targetLanguage with exactly one word wrapped in double curly braces, the single word the learner is meant to learn, e.g. ${CLOZE_EXAMPLE}; translation is the whole sentence in the pairing's baseLanguage (both languages come from list_language_pairings). Each sentence is saved separately: returns { added: [{ index, id, ... }], failed: [{ index, text, error }] }, where index is the position in the sentences array. A sentence fails, for example, when the collection already has the same text.`,
-      inputSchema: {
-        languagePairingId,
-        collectionId,
-        sentences: z.array(newSentence).min(1).max(MAX_SENTENCES_PER_CALL).describe("The sentences to add, in order."),
-      },
-    },
-    (input) => runTool(() => addSentences(input)),
-  );
-
-  server.registerTool(
-    "update_sentence",
-    {
-      annotations: REPLACES,
-      description: `Change a sentence in one of the user's own collections (needs Clozemaster Pro), keeping the learner's progress on it. Send text and translation, even if only one changes; hint, notes, alternativeAnswers and pronunciation stay as they are unless sent. text is in the pairing's targetLanguage with exactly one word wrapped in double curly braces, the single word the learner is meant to learn, e.g. ${CLOZE_EXAMPLE}; translation is the whole sentence in the pairing's baseLanguage. Returns the sentence's id and the fields sent.`,
-      inputSchema: {
-        languagePairingId,
-        collectionId,
-        sentenceId,
-        ...newSentence.shape,
-        hint: z.string().trim().optional().describe("Optional short clue shown before the learner answers. Send an empty string to remove it."),
-      },
-    },
-    (input) => runTool(() => updateSentence(input)),
-  );
-
-  server.registerTool(
-    "delete_sentence",
-    {
-      annotations: DELETES,
-      description: "Permanently delete a sentence from one of the user's own collections (needs Clozemaster Pro). Returns { deleted: sentenceId }.",
-      inputSchema: { languagePairingId, collectionId, sentenceId },
-    },
-    (input) => runTool(() => deleteSentence(input)),
-  );
-
+  server.setRequestHandler(ListToolsRequestSchema, (request) => listRemoteTools(remote, request.params));
+  server.setRequestHandler(CallToolRequestSchema, (request) => callRemoteTool(remote, request.params));
   return server;
 }
 
 export async function startMcpServer() {
   identifyClientAs("mcp");
-  await createMcpServer().connect(new StdioServerTransport());
-  console.error("Clozemaster MCP server running on stdio");
+  await (await createMcpServer()).connect(new StdioServerTransport());
+  console.error(`Clozemaster MCP server running on stdio, passing calls through to ${remoteMcpUrl}`);
   updateWhileRunning();
 }
 

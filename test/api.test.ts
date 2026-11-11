@@ -182,52 +182,9 @@ describe("api requests", () => {
       expect(lastRequest(fetch)).toMatchObject({ body: { collection: { name: "Food" } }, method: "POST" });
     });
 
-    it("pins a collection to the dashboard", async () => {
-      const fetch = stubFetch(200, { collection });
-      await api.pinCollection(pairing, collection);
-      expect(lastRequest(fetch)).toMatchObject({ body: { user_collection: { dashboard_collection: true } }, method: "PUT" });
-      expect(lastRequest(fetch).url.pathname).toBe("/api/v1/lp/7/c/42/uc");
-    });
-
-    it("unpins a collection from the dashboard", async () => {
-      const fetch = stubFetch(200, { collection });
-      await api.unpinCollection(pairing, collection);
-      expect(lastRequest(fetch)).toMatchObject({ body: { user_collection: { dashboard_collection: false } }, method: "PUT" });
-      expect(lastRequest(fetch).url.pathname).toBe("/api/v1/lp/7/c/42/uc");
-    });
-
     it("reports whether the user has Pro", async () => {
       stubFetch(200, { user: { isPro: null } });
       expect(await api.isProSubscriber()).toBe(false);
-    });
-  });
-
-  describe("collection sentences", () => {
-    it("gets a page of sentences", async () => {
-      const page = { collectionClozeSentences: [], page: 2, perPage: 20, total: 0 };
-      const fetch = stubFetch(200, page);
-      expect(await api.getCollectionSentences(pairing, { collection, page: 2, perPage: 20 })).toEqual(page);
-      const { url } = lastRequest(fetch);
-      expect(url.pathname).toBe("/api/v1/lp/7/c/42/ccs");
-      expect(Object.fromEntries(url.searchParams)).toEqual({ page: "2", per_page: "20" });
-    });
-
-    it("gets a page of sentences matching a query", async () => {
-      const fetch = stubFetch(200, { collectionClozeSentences: [], page: 1, perPage: 20, total: 0 });
-      await api.getCollectionSentences(pairing, { collection, page: 1, perPage: 20, query: "fragor" });
-      expect(Object.fromEntries(lastRequest(fetch).url.searchParams)).toEqual({ page: "1", per_page: "20", query: "fragor" });
-    });
-
-    it("gets one sentence", async () => {
-      const fetch = stubFetch(200, { collectionClozeSentence: { id: 900 } });
-      expect(await api.getCollectionSentence(pairing, { collection, id: 900 })).toEqual({ id: 900 });
-      expect(lastRequest(fetch).url.pathname).toBe("/api/v1/lp/7/c/42/ccs/900");
-    });
-
-    it("deletes one sentence", async () => {
-      const fetch = stubFetch(204);
-      await api.deleteCollectionSentence(pairing, { collection, id: 900 });
-      expect(lastRequest(fetch)).toMatchObject({ method: "DELETE", url: expect.objectContaining({ pathname: "/api/v1/lp/7/c/42/ccs/900" }) });
     });
   });
 
