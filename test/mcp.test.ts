@@ -341,6 +341,20 @@ describe("MCP server", () => {
     expect(api.updateCollectionSentence).toHaveBeenCalledWith(pairing, { collection, id: 900, sentence: update });
   });
 
+  it("removes a sentence's hint when sent an empty hint", async () => {
+    const update = { text: "Ich {{hatte}} Hunger.", translation: "I was hungry.", hint: "" };
+    const result = await callTool("update_sentence", { ...ids, sentenceId: 900, ...update });
+    expect(resultJson(result)).toEqual({ id: 900, ...update });
+    expect(api.updateCollectionSentence).toHaveBeenCalledWith(pairing, { collection, id: 900, sentence: update });
+  });
+
+  it("tells agents to leave the hint out unless the user asks for one", async () => {
+    const client = await connectClient();
+    const { tools } = await client.listTools();
+    const addSentences = tools.find((tool) => tool.name === "add_sentences");
+    expect(JSON.stringify(addSentences?.inputSchema)).toContain("Leave out unless the user asks for a hint");
+  });
+
   it("doesn't update a sentence the collection doesn't have", async () => {
     vi.mocked(api.getCollectionSentence).mockRejectedValue(new api.ApiError("Clozemaster responded 404", 404));
     const result = await callTool("update_sentence", { ...ids, sentenceId: 1, text: "Ich {{habe}} Hunger.", translation: "I am hungry." });

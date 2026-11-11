@@ -66,7 +66,7 @@ const newSentence = z.object({
   translation,
   hint: nonEmptyText()
     .optional()
-    .describe("Optional short clue shown before the learner answers, e.g. the hidden word's dictionary form. Must not give the answer away."),
+    .describe("Optional short clue shown before the learner answers. Leave out unless the user asks for a hint. Must not give the answer away."),
   notes: nonEmptyText()
     .max(MAX_NOTES_LENGTH)
     .optional()
@@ -336,7 +336,13 @@ export function createMcpServer(): McpServer {
     {
       annotations: REPLACES,
       description: `Change a sentence in one of the user's own collections (needs Clozemaster Pro), keeping the learner's progress on it. Send text and translation, even if only one changes; hint, notes, alternativeAnswers and pronunciation stay as they are unless sent. text is in the pairing's targetLanguage with exactly one word wrapped in double curly braces, the single word the learner is meant to learn, e.g. ${CLOZE_EXAMPLE}; translation is the whole sentence in the pairing's baseLanguage. Returns the sentence's id and the fields sent.`,
-      inputSchema: { languagePairingId, collectionId, sentenceId, ...newSentence.shape },
+      inputSchema: {
+        languagePairingId,
+        collectionId,
+        sentenceId,
+        ...newSentence.shape,
+        hint: z.string().trim().optional().describe("Optional short clue shown before the learner answers. Send an empty string to remove it."),
+      },
     },
     (input) => runTool(() => updateSentence(input)),
   );
