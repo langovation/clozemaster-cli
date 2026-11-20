@@ -112,9 +112,12 @@ command = "clozemaster"
 args = ["mcp"]
 ```
 
-### ChatGPT
+### Use the hosted server (Claude and ChatGPT)
 
-Not yet. ChatGPT only connects to remote MCP servers over HTTPS, not to commands on your computer. It needs a hosted Clozemaster MCP server, which doesn't exist yet.
+No install needed: a hosted Clozemaster MCP server runs at `https://www.clozemaster.com/mcp` with the same tools. You sign in to Clozemaster with OAuth when you connect, and it needs Clozemaster Pro.
+
+- **Claude**: add `https://www.clozemaster.com/mcp` as a custom connector (Settings > Connectors > Add custom connector).
+- **ChatGPT**: go to chatgpt.com/plugins, click **+**, choose **Add custom MCP server**, enter `https://www.clozemaster.com/mcp` and pick OAuth.
 
 ## Uninstall
 
